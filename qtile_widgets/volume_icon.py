@@ -1,3 +1,4 @@
+import re
 import subprocess as sp
 
 from libqtile import confreader
@@ -7,38 +8,23 @@ from .logger import create_logger
 from .round_progress_bar import RoundProgressBar
 
 
-_logger = create_logger("BRIGHTNESS_ICON")
+_logger = create_logger("VOLUME_ICON")
 
 
 class _Commands():
     _get = []
-    _set = []
     _inc = []
     _dec = []
+    _tog = []
 
-    def __init__(self, program="brightnessctl", step=5):
+    def __init__(self, device="pulse", step=5):
         if step < 1 or step > 100:
-            raise confreader.ConfigError("Invalid step provided to BrightnessIcon: '%s'" % step)
+            raise confreader.ConfigError("Invalid step provided to VolumeIcon: '%s'" % step)
 
-        step = str(step)
-
-        if program == "brightnessctl":
-            self._get = ["bash", "-c", "brightnessctl -m | cut -d, -f4 | tr -d %"]
-            self._set = ["brightnessctl", "set", "{}%"]
-            self._inc = ["brightnessctl", "set", "+{}%".format(step)]
-            self._dec = ["brightnessctl", "set", "{}-%".format(step)]
-        elif program == "light":
-            self._get = ["light", "-G"]
-            self._set = ["light", "-S", "{}"]
-            self._inc = ["light", "-A", step]
-            self._dec = ["light", "-U", step]
-        elif program == "xbacklight":
-            self._get = ["xbacklight", "-get"]
-            self._set = ["xbacklight", "-set", "{}"]
-            self._inc = ["xbacklight", "-inc", step]
-            self._dec = ["xbacklight", "-dec", step]
-        else:
-            raise confreader.ConfigError("Invalid program provided to BrightnessIcon: '%s'" % program)
+        self._get = ["amixer", "-D", device, "sget", "Master"]
+        self._inc = ["amixer", "-D", device, "sset", "Master", "{}%+".format(step)]
+        self._dec = ["amixer", "-D", device, "sset", "Master", "{}%-".format(step)]
+        self._tog = ["amixer", "-D", device, "sset", "Master", "toggle"]
 
     def _safe_call(self, func, fallback=None):
         try:
@@ -48,12 +34,12 @@ class _Commands():
         return fallback
 
     def get(self):
-        level = self._safe_call(lambda: sp.check_output(self._get).decode().strip(), "0")
-        return "{:.0f}".format(float(level))
+        info = self._safe_call(lambda: sp.check_output(self._get).decode().strip(), "")
+        return re.search("(\\d?\\d?\\d)%", info).group(1)
 
-    def set(self, percentage):
-        self._set[-1] = self._set[-1].format(percentage)
-        return self._safe_call(lambda: sp.call(self._set))
+    def is_muted(self):
+        info = self._safe_call(lambda: sp.check_output(self._get).decode().strip(), "")
+        return re.search("\\[(o\\D\\D?)\\]", info).group(1) == "off"
 
     def inc(self):
         return self._safe_call(lambda: sp.call(self._inc))
@@ -61,28 +47,32 @@ class _Commands():
     def dec(self):
         return self._safe_call(lambda: sp.call(self._dec))
 
+    def toggle(self):
+        return self._safe_call(lambda: sp.call(self._tog))
 
-class BrightnessIcon(RoundProgressBar):
+
+class VolumeIcon(RoundProgressBar):
     defaults = [
-        ("program", "brightnessctl", "Program to control brightness."),
-        ("step", 5, "Increment/decrement percentage of brightness."),
+        ("device", "pulse", "Device name to control"),
+        ("step", 5, "Increment/decrement percentage of volume."),
         ("timeout", 0, "How often in seconds the widget refreshes."),
         ("icons", [
-            ((0, 30), "\uf5dd"),
-            ((30, 80), "\uf5de"),
-            ((80, 100), "\uf5df"),
+            ((-1, -1), "\ufc5d"),
+            ((0, 0), "\uf026"),
+            ((0, 50), "\uf027"),
+            ((50, 100), "\uf028"),
         ], "Icons to present inside progress bar, based on progress thresholds.")
     ]
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(BrightnessIcon.defaults)
+        self.add_defaults(VolumeIcon.defaults)
         self.add_defaults(base._TextBox.defaults)
-        self._cmds = _Commands(self.program, self.step)
+        self._cmds = _Commands(self.device, self.step)
         self.update_level()
 
-        _logger.info("Initialized with '%s'", self.program)
-        _logger.debug("Current brightness: %s", self._cmds.get())
+        _logger.info("Initialized with '%s'", self.device)
+        _logger.debug("Current volume: %s", self._cmds.get())
 
     def _configure(self, qtile, bar):
         super()._configure(qtile, bar)
@@ -91,12 +81,15 @@ class BrightnessIcon(RoundProgressBar):
 
     def get_icon(self):
         for threshs, icon in self.icons:
+            if self._is_muted and threshs[0] == -1:
+                return icon
             if self._level >= threshs[0] and self._level <= threshs[1]:
                 return icon
         return ""
 
     def update_level(self):
         self._level = float(self._cmds.get())
+        self._is_muted = self._cmds.is_muted()
 
     def update(self):
         self.update_level()
@@ -109,7 +102,7 @@ class BrightnessIcon(RoundProgressBar):
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
         # draw progress bar
-        self.draw_progress(self._level)
+        self.draw_progress(self._level, self._is_muted and self.color_remaining or None)
         # draw icon
         icon = self.drawer.textlayout(self.get_icon(), self.foreground, self.font, self.fontsize, None, wrap=False)
         icon_x = (self.prog_width - icon.width) / 2
@@ -123,4 +116,8 @@ class BrightnessIcon(RoundProgressBar):
 
     def cmd_dec(self):
         self._cmds.dec()
+        self.update()
+
+    def cmd_toggle(self):
+        self._cmds.toggle()
         self.update()

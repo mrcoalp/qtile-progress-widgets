@@ -24,8 +24,8 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
     def calculate_length(self):
         return self.prog_width
 
-    def draw_progress(self, percentage):
-        color = self.color_completed
+    def draw_progress(self, percentage, completed=None):
+        color = completed or self.color_completed
 
         if self.thresholds:
             for lvls, clr in self.thresholds:
