@@ -55,13 +55,14 @@ class VolumeIcon(RoundProgressBar):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
-        ("timeout", 0, "How often in seconds the widget refreshes."),
+        ("timeout", 1, "How often in seconds the widget refreshes."),
         ("icons", [
             ((-1, -1), "\ufc5d"),
             ((0, 0), "\uf026"),
             ((0, 50), "\uf027"),
             ((50, 100), "\uf028"),
-        ], "Icons to present inside progress bar, based on progress thresholds.")
+        ], "Icons to present inside progress bar, based on progress thresholds."),
+        ("muted_color", None, "Color for icon and bar when muted.")
     ]
 
     def __init__(self, **config):
@@ -80,10 +81,10 @@ class VolumeIcon(RoundProgressBar):
             self.timeout_add(self.timeout, self.loop)
 
     def get_icon(self):
-        for threshs, icon in self.icons:
-            if self._is_muted and threshs[0] == -1:
+        for limits, icon in self.icons:
+            if self._is_muted and limits[0] == -1:
                 return icon
-            if self._level >= threshs[0] and self._level <= threshs[1]:
+            if self._level >= limits[0] and self._level <= limits[1]:
                 return icon
         return ""
 
@@ -102,9 +103,16 @@ class VolumeIcon(RoundProgressBar):
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
         # draw progress bar
-        self.draw_progress(self._level, self._is_muted and self.color_remaining or None)
+        colors = {
+            "completed": self._is_muted and self.muted_color or None,
+            "remaining": self._is_muted and self.muted_color or None
+        }
+        self.draw_progress(self._level, **colors)
         # draw icon
-        icon = self.drawer.textlayout(self.get_icon(), self.foreground, self.font, self.fontsize, None, wrap=False)
+        icon = self.drawer.textlayout(
+            self.get_icon(), self._is_muted and self.muted_color or self.foreground,
+            self.font, self.fontsize, None, wrap=False
+        )
         icon_x = (self.prog_width - icon.width) / 2
         icon_y = (self.prog_height - icon.height) / 2
         icon.draw(icon_x, icon_y)
