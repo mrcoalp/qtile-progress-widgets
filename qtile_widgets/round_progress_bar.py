@@ -6,9 +6,8 @@ from libqtile import bar
 
 class RoundProgressBar(base._Widget, base.PaddingMixin):
     defaults = [
-        ("color_completed", "ffffff", "Color of the completed stroke of progress bar"),
-        ("color_remaining", "666666", "Color of the remaining stroke of progress bar"),
         ("thresholds", [], "Defines different colors for each specified threshold"),
+        ("thickness", 2, "Stroke thickness"),
     ]
 
     def __init__(self, **config):
@@ -24,13 +23,14 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
     def calculate_length(self):
         return self.prog_width
 
-    def draw_progress(self, percentage, completed=None):
-        color = completed or self.color_completed
+    def draw_progress(self, percentage, completed=None, remaining=None):
+        comp = completed or self.foreground
+        rem = remaining or self.background
 
-        if self.thresholds:
-            for lvls, clr in self.thresholds:
-                if percentage >= lvls[0] and percentage <= lvls[1]:
-                    color = clr
+        for limits, colors in self.thresholds:
+            if percentage >= limits[0] and percentage <= limits[1]:
+                comp = completed or colors[0]
+                rem = remaining or colors[1]
 
         center = self.prog_width / 2
         radius = (self.prog_width - (self.padding_y * 2)) / 2
@@ -39,10 +39,12 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         # draw completed
         self.drawer.ctx.new_sub_path()
         self.drawer.ctx.arc(center, center, radius, 0, end_angle)
-        self.drawer.set_source_rgb(color)
+        self.drawer.set_source_rgb(comp)
+        self.drawer.ctx.set_line_width(self.thickness)
         self.drawer.ctx.stroke()
         # draw remaining
         self.drawer.ctx.new_sub_path()
         self.drawer.ctx.arc(center, center, radius, end_angle, 2 * math.pi)
-        self.drawer.set_source_rgb(self.color_remaining)
+        self.drawer.set_source_rgb(rem)
+        self.drawer.ctx.set_line_width(self.thickness)
         self.drawer.ctx.stroke()
