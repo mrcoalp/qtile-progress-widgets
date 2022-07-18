@@ -72,6 +72,12 @@ class VolumeIcon(RoundProgressBar):
         self._cmds = _Commands(self.device, self.step)
         self.update_level()
 
+        self.add_callbacks({
+            "Button1": lambda: self.cmd_toggle(),
+            "Button4": lambda: self.cmd_inc(),
+            "Button5": lambda: self.cmd_dec(),
+        })
+
         _logger.info("Initialized with '%s'", self.device)
         _logger.debug("Current volume: %s", self._cmds.get())
 

@@ -81,6 +81,11 @@ class BrightnessIcon(RoundProgressBar):
         self._cmds = _Commands(self.program, self.step)
         self.update_level()
 
+        self.add_callbacks({
+            "Button4": lambda: self.cmd_inc(),
+            "Button5": lambda: self.cmd_dec(),
+        })
+
         _logger.info("Initialized with '%s'", self.program)
         _logger.debug("Current brightness: %s", self._cmds.get())
 
