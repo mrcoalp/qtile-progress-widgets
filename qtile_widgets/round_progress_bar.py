@@ -48,3 +48,13 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         self.drawer.set_source_rgb(rem)
         self.drawer.ctx.set_line_width(self.thickness)
         self.drawer.ctx.stroke()
+
+    def fill_inner(self, color):
+        center = self.prog_width / 2
+        radius = (self.prog_width - (self.padding_y * 2) - self.thickness) / 2
+
+        self.drawer.ctx.new_sub_path()
+        self.drawer.ctx.arc(center, center, radius, 0, 2 * math.pi)
+        self.drawer.set_source_rgb(color)
+        self.drawer.ctx.fill()
+
