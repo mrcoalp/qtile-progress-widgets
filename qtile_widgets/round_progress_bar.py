@@ -1,7 +1,7 @@
 import math
 
-from libqtile.widget import base
 from libqtile import bar
+from libqtile.widget import base
 
 
 class RoundProgressBar(base._Widget, base.PaddingMixin):
@@ -24,13 +24,13 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         return self.prog_width
 
     def draw_progress(self, percentage, completed=None, remaining=None):
-        comp = completed or self.foreground
-        rem = remaining or self.background
+        comp = completed or self.foreground or "ffffff"
+        rem = remaining or self.background or "666666"
 
         for limits, colors in self.thresholds:
             if percentage >= limits[0] and percentage <= limits[1]:
-                comp = completed or colors[0]
-                rem = remaining or colors[1]
+                comp = completed or colors[0] or comp
+                rem = remaining or colors[1] or rem
 
         center = self.prog_width / 2
         radius = (self.prog_width - (self.padding_y * 2)) / 2
