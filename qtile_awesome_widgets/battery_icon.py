@@ -1,7 +1,4 @@
-import re
-import subprocess as sp
-
-from libqtile.widget import base
+from libqtile.widget import base, battery as bt
 
 from .logger import create_logger
 from .round_progress_bar import RoundProgressBar
@@ -36,11 +33,12 @@ class BatteryIcon(RoundProgressBar):
 
     def __init__(self, **config):
         super().__init__(**config)
+        self._battery = bt.load_battery(**config)
         self.add_defaults(BatteryIcon.defaults)
         self.add_defaults(base._TextBox.defaults)
         self.update_level()
 
-        _logger.debug("Initialized with current battery status: '%s' - %s%%", self._status, self._level)
+        _logger.debug("Initialized with current battery status: '%s' - %s%%", self._state, self._level)
 
     def _configure(self, qtile, bar):
         super()._configure(qtile, bar)
@@ -49,17 +47,16 @@ class BatteryIcon(RoundProgressBar):
 
     def get_icon(self):
         for threshs, icon in self.icons:
-            if self._status == "Charging" and threshs[0] == -1 and threshs[1] == -1:
+            if self._state == bt.BatteryState.CHARGING and threshs[0] == -1 and threshs[1] == -1:
                 return icon
             if self._level >= threshs[0] and self._level <= threshs[1]:
                 return icon
         return ""
 
     def update_level(self):
-        info = sp.check_output(["acpi"]).decode().strip()
-        filtered = re.search(".+: (.+), (\\d?\\d?\\d)%,?(.*)", info)
-        self._status = filtered.group(1)
-        self._level = float(filtered.group(2))
+        status = self._battery.update_status()
+        self._state = status.state
+        self._level = int(status.percent * 100)
 
     def update(self):
         self.update_level()
@@ -74,7 +71,7 @@ class BatteryIcon(RoundProgressBar):
         # draw progress bar
         self.draw_progress(self._level)
         # fill circle when a charging color is provided
-        if self._status == "Charging" and self.charging_color:
+        if self._state == bt.BatteryState.CHARGING and self.charging_color:
             self.fill_inner(self.charging_color)
         # draw icon
         icon = self.drawer.textlayout(self.get_icon(), self.foreground, self.font, self.fontsize, None, wrap=False)
