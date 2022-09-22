@@ -4,7 +4,7 @@ import os
 
 formatter = logging.Formatter("[%(asctime)s][%(name)s][%(levelname)s]: %(message)s", "%H:%M:%S")
 
-log_dir = os.path.expanduser("~/.local/share/qtile-widgets")
+log_dir = os.path.expanduser("~/.local/share/qtile-awesome-widgets")
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)

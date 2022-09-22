@@ -30,6 +30,8 @@ class BatteryIcon(RoundProgressBar):
             ((50, 100), ("00ff00", "")),
         ], "Defines different colors for each specified threshold.")
     ]
+    _state = None
+    _level = None
 
     def __init__(self, **config):
         super().__init__(**config)
@@ -55,12 +57,18 @@ class BatteryIcon(RoundProgressBar):
 
     def update_level(self):
         status = self._battery.update_status()
-        self._state = status.state
-        self._level = int(status.percent * 100)
+        state = status.state
+        level = int(status.percent * 100)
+        if state != self._state or level != self._level:
+            self._state = state
+            self._level = level
+            return True
+        return False
 
     def update(self):
-        self.update_level()
-        self.draw()
+        # avoid unnecessary draw calls
+        if self.update_level():
+            self.draw()
 
     def loop(self):
         self.update()
