@@ -57,4 +57,3 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         self.drawer.ctx.arc(center, center, radius, 0, 2 * math.pi)
         self.drawer.set_source_rgb(color)
         self.drawer.ctx.fill()
-
