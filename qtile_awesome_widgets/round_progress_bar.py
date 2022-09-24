@@ -57,3 +57,9 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         self.drawer.ctx.arc(center, center, radius, 0, 2 * math.pi)
         self.drawer.set_source_rgb(color)
         self.drawer.ctx.fill()
+
+    def draw_inner_text(self, text, color, font, fontsize):
+        layout = self.drawer.textlayout(text, color, font, fontsize, None, wrap=False)
+        x = (self.prog_width - layout.width) / 2
+        y = (self.prog_height - layout.height) / 2
+        layout.draw(x, y)

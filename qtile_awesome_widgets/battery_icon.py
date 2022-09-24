@@ -82,8 +82,5 @@ class BatteryIcon(RoundProgressBar):
         if self._state == bt.BatteryState.CHARGING and self.charging_color:
             self.fill_inner(self.charging_color)
         # draw icon
-        icon = self.drawer.textlayout(self.get_icon(), self.foreground, self.font, self.fontsize, None, wrap=False)
-        icon_x = (self.prog_width - icon.width) / 2
-        icon_y = (self.prog_height - icon.height) / 2
-        icon.draw(icon_x, icon_y)
+        self.draw_inner_text(self.get_icon(), self.foreground, self.font, self.fontsize)
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
