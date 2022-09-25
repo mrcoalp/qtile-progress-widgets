@@ -49,7 +49,7 @@ class MemoryIcon(RoundProgressBar):
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
         # draw progress bar
-        self.draw_progress(self._level)
+        self.draw_progress_bar(self._level)
         # draw icon
-        self.draw_inner_text(self.get_icon(), self.foreground, self.font, self.fontsize)
+        self.draw_text_in_inner_circle(self.get_icon(), self.foreground, self.font, self.fontsize)
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)

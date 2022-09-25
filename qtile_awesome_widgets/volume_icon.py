@@ -113,10 +113,10 @@ class VolumeIcon(RoundProgressBar):
             "completed": self._is_muted and self.muted_color or None,
             "remaining": self._is_muted and self.muted_color or None
         }
-        self.draw_progress(self._level, **colors)
+        self.draw_progress_bar(self._level, **colors)
         # draw icon
         color = self._is_muted and self.muted_color or self.foreground
-        self.draw_inner_text(self.get_icon(), color, self.font, self.fontsize)
+        self.draw_text_in_inner_circle(self.get_icon(), color, self.font, self.fontsize)
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
 
     def cmd_inc(self):
