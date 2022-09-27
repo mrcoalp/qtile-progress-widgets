@@ -94,15 +94,10 @@ class BrightnessIcon(AwesomeWidget):
             return True
         return False
 
-    def draw(self):
-        self.drawer.clear(self.background or self.bar.background)
-        self.draw_widget_elements()
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
-
     def cmd_inc(self):
         self._cmds.inc()
-        self.update()
+        self.check_draw_call()
 
     def cmd_dec(self):
         self._cmds.dec()
-        self.update()
+        self.check_draw_call()

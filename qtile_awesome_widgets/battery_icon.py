@@ -25,7 +25,7 @@ class BatteryIcon(AwesomeWidget):
             ((90, 100), "\uf578"),
         ], "Icons to present inside progress bar, based on progress limits."),
         ("icon_colors", [
-            ((-1, -1), "00ff00"),
+            ((-1, -1), "000000"),
             ((0, 10), "ff0000"),
         ], "Icon color, based on progress limits."),
         ("text_colors", [
@@ -52,12 +52,12 @@ class BatteryIcon(AwesomeWidget):
         status = self._battery.update_status()
         return status.state, int(status.percent * 100)
 
-    def get_icon(self):
+    def get_icon(self, _=None):
         if self._state == bt.BatteryState.CHARGING:
             return super().get_icon(-1)
         return super().get_icon()
 
-    def get_text_color(self):
+    def get_text_color(self, _=None):
         if self._state == bt.BatteryState.CHARGING:
             return super().get_text_color(-1)
         return super().get_text_color()
@@ -70,9 +70,7 @@ class BatteryIcon(AwesomeWidget):
             return True
         return False
 
-    def draw(self):
-        self.drawer.clear(self.background or self.bar.background)
-        # fill circle when a charging color is provided
+    def update(self):
         is_charging = self._state == bt.BatteryState.CHARGING
-        self.draw_widget_elements(inner_color=is_charging and self.inner_charging_color or None)
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
+        self.inner_color_override = is_charging and self.inner_charging_color or None
+        super().update()

@@ -10,10 +10,14 @@ class CPUIcon(AwesomeWidget):
             ((0, 100), "\ue266"),
         ], "Icons to present inside progress bar, based on progress thresholds."),
         ("icon_colors", [
+            ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
         ], "Icon color, based on progress limits."),
+        ("text_colors", [
+            ((50, 75), "ffff00"),
+            ((75, 100), "ff0000"),
+        ], "Text color, based on progress limits."),
         ("thresholds", [
-            ((0, 50), ("00ff00", "")),
             ((50, 75), ("ffff00", "")),
             ((75, 100), ("ff0000", "")),
         ], "Defines different colors for each specified threshold.")
@@ -30,8 +34,3 @@ class CPUIcon(AwesomeWidget):
             self._progress = progress
             return True
         return False
-
-    def draw(self):
-        self.drawer.clear(self.background or self.bar.background)
-        self.draw_widget_elements()
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)

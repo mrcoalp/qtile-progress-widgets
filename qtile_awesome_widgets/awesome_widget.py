@@ -1,5 +1,3 @@
-from libqtile.confreader import ConfigError
-
 from .round_progress_bar import RoundProgressBar
 
 
@@ -7,6 +5,8 @@ class AwesomeWidget(RoundProgressBar):
     defaults = [
         ("font", "sans", "Default font"),
         ("fontsize", None, "Font size. Calculated if None."),
+        ("fontshadow", None, "font shadow color, default is None(no shadow)"),
+        ("markup", True, "Whether or not to use pango markup"),
         ("timeout", 1, "How often in seconds the widget refreshes."),
         ("show_progress_bar", True, "Whether to draw round progress bar."),
         ("icons", [], "Icons to present inside progress bar, based on progress limits."),
@@ -18,6 +18,9 @@ class AwesomeWidget(RoundProgressBar):
         ("text_colors", [], "Text color, based on progress limits."),
     ]
     _progress = 0
+    _icon_layout = None
+    _text_layout = None
+    _total_length = None
 
     def __init__(self, **config):
         super().__init__(**config)
@@ -26,16 +29,52 @@ class AwesomeWidget(RoundProgressBar):
     @staticmethod
     def _is_in_limits(value, limits):
         lower, upper = limits
-        if value >= lower and value <= upper:
+        if lower <= value <= upper:
             return True
         return False
 
+    @staticmethod
+    def _update_layout(layout, **kwargs):
+        for key, value in kwargs.items():
+            setattr(layout, key, value)
+
     def _configure(self, qtile, bar):
         super()._configure(qtile, bar)
-        self._total_length = super().calculate_length()
+
+        if self.fontsize is None:
+            self.fontsize = self.bar.height - self.bar.height / 5
+
+        def create_layout(icon=False):
+            return self.drawer.textlayout(
+                "",
+                "ffffff",
+                self.font,
+                icon and self.icon_size or self.fontsize,
+                self.fontshadow,
+                markup=self.markup,
+            )
+
+        if not self.text_mode or self.text_mode == "with_icon":
+            self._icon_layout = create_layout(True)
+
+        if self.text_mode in ["with_icon", "without_icon"]:
+            self._text_layout = create_layout()
+
+        self.update()
+
         if self.timeout <= 0:
             return
+
         self.timeout_add(self.timeout, self.loop)
+
+    def _can_draw(self):
+        if self.show_progress_bar:
+            return True
+        if self._icon_layout and self._icon_layout.text:
+            return True
+        if self._text_layout and self._text_layout.text:
+            return True
+        return False
 
     def calculate_length(self):
         return self._total_length
@@ -65,54 +104,89 @@ class AwesomeWidget(RoundProgressBar):
         return False
 
     def update(self):
-        # avoid unnecessary draw calls
+        icon_config = dict(layout=self._icon_layout, text=self.get_icon(), colour=self.get_icon_color())
+        text_config = dict(layout=self._text_layout, text=self.get_text(), colour=self.get_text_color())
+
+        if self._icon_layout:
+            self._update_layout(**icon_config)
+        if self._text_layout:
+            self._update_layout(**text_config)
+
+        self._total_length = 0
+
+        if self.show_progress_bar:
+            self._total_length += super().calculate_length()
+            if not self.text_mode or self.text_mode == "without_icon":
+                return
+        else:
+            self._total_length += self._icon_layout.width
+
+        if self._text_layout.text and self.text_mode == "with_icon":
+            self._total_length += (self._text_layout.width + self.text_offset + (self.padding_x * 2))
+
+    def check_draw_call(self):
         if not self.is_update_required():
+            # avoid unnecessary draw calls
             return
-        self.draw()
+
+        old_length = self._total_length
+
+        self.update()
+
+        if not self._can_draw():
+            # avoid unnecessary draw calls
+            return
+
+        if old_length != self._total_length:
+            # draw entire bar when length changes
+            return self.bar.draw()
+
+        return self.draw()
 
     def loop(self):
-        self.update()
+        self.check_draw_call()
         self.timeout_add(self.timeout, self.loop)
 
-    def draw_widget_elements(self, completed=None, remaining=None, inner_color=None):
+    def draw_text_in_inner_circle(self, layout):
+        # relative to round progress bar attributes
+        x = (self.prog_width - layout.width) / 2
+        y = (self.prog_height - layout.height) / 2
+        layout.draw(x, y)
+
+    def draw_widget_elements(self):
         if self.show_progress_bar:
-            self.draw_progress_bar(self._progress, completed, remaining)
-
-        if inner_color:
-            self.paint_inner_circle(inner_color)
-
-        icon_config = [self.get_icon(), self.get_icon_color(), self.font, self.icon_size or self.fontsize]
+            self.draw_progress_bar(self._progress)
 
         if not self.text_mode:
             # draw only the icon
-            return self.draw_text_in_inner_circle(*icon_config)
-
-        if self.text_mode not in ["with_icon", "without_icon"]:
-            raise ConfigError("Invalid 'text_mode' method. Must be either 'with_icon' or 'without_icon'")
-
-        text_config = [self.get_text(), self.get_text_color(), self.font, self.fontsize]
+            return self.draw_text_in_inner_circle(self._icon_layout)
 
         if self.text_mode == "without_icon":
             # replace icon with text
-            return self.draw_text_in_inner_circle(*text_config)
+            return self.draw_text_in_inner_circle(self._text_layout)
+
+        if self.text_mode != "with_icon":
+            # invalid text mode
+            return
 
         text_start = super().calculate_length()
 
-        if not self.show_progress_bar:
-            # draw icon by itself, without progress bar
-            icon = self.drawer.textlayout(*icon_config, None, wrap=False)
-            x, y = self.padding_x, (self.bar.height - icon.height) / 2
-            icon.draw(x, y)
-            text_start = icon.width
-        else:
+        if self.show_progress_bar:
             # draw inside progress bar
-            self.draw_text_in_inner_circle(*icon_config)
+            self.draw_text_in_inner_circle(self._icon_layout)
+        else:
+            # draw icon by itself, without progress bar
+            x, y = self.padding_x, (self.bar.height - self._icon_layout.height) / 2
+            self._icon_layout.draw(x, y)
+            text_start = self._icon_layout.width
 
-        text = self.drawer.textlayout(*text_config, None, wrap=False)
-        x, y = self.padding_x + text_start + self.text_offset, (self.bar.height - text.height) / 2
-        text.draw(x, y)
+        if not self._text_layout.text:
+            return
 
-        self._total_length = text_start + text.width + self.padding_x + self.text_offset
+        x, y = self.padding_x + text_start + self.text_offset, (self.bar.height - self._text_layout.height) / 2
+        self._text_layout.draw(x, y)
 
     def draw(self):
-        raise ConfigError("Draw method not overridden by custom awesome widget.")
+        self.drawer.clear(self.background or self.bar.background)
+        self.draw_widget_elements()
+        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.width, height=self.height)

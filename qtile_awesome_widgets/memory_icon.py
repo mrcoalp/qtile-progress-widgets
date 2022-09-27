@@ -10,10 +10,14 @@ class MemoryIcon(AwesomeWidget):
             ((0, 100), "\uf85a"),
         ], "Icons to present inside progress bar, based on progress thresholds."),
         ("icon_colors", [
+            ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
         ], "Icon color, based on progress limits."),
+        ("text_colors", [
+            ((50, 75), "ffff00"),
+            ((75, 100), "ff0000"),
+        ], "Text color, based on progress limits."),
         ("thresholds", [
-            ((0, 50), ("00ff00", "")),
             ((50, 75), ("ffff00", "")),
             ((75, 100), ("ff0000", "")),
         ], "Defines different colors for each specified threshold."),
@@ -33,21 +37,15 @@ class MemoryIcon(AwesomeWidget):
     def _get_values(self):
         mem = psutil.virtual_memory()
         swap = psutil.swap_memory()
-        values = {}
-        values["MemUsed"] = mem.used / self.calc_mem
-        values["MemTotal"] = mem.total / self.calc_mem
-        values["MemFree"] = mem.free / self.calc_mem
-        values["MemPercent"] = mem.percent
-        values["Buffers"] = mem.buffers / self.calc_mem
-        values["Active"] = mem.active / self.calc_mem
-        values["Inactive"] = mem.inactive / self.calc_mem
-        values["Shmem"] = mem.shared / self.calc_mem
-        values["SwapTotal"] = swap.total / self.calc_swap
-        values["SwapFree"] = swap.free / self.calc_swap
-        values["SwapUsed"] = swap.used / self.calc_swap
-        values["SwapPercent"] = swap.percent
-        values["mm"] = self.measure_mem
-        values["ms"] = self.measure_swap
+        values = {
+            "MemUsed": mem.used / self.calc_mem, "MemTotal": mem.total / self.calc_mem,
+            "MemFree": mem.free / self.calc_mem, "MemPercent": mem.percent,
+            "Buffers": mem.buffers / self.calc_mem, "Active": mem.active / self.calc_mem,
+            "Inactive": mem.inactive / self.calc_mem, "Shmem": mem.shared / self.calc_mem,
+            "SwapTotal": swap.total / self.calc_swap, "SwapFree": swap.free / self.calc_swap,
+            "SwapUsed": swap.used / self.calc_swap, "SwapPercent": swap.percent, "mm": self.measure_mem,
+            "ms": self.measure_swap,
+        }
         return values
 
     def get_text(self):
@@ -60,8 +58,6 @@ class MemoryIcon(AwesomeWidget):
             return True
         return False
 
-    def draw(self):
-        self.drawer.clear(self.background or self.bar.background)
+    def update(self):
         self._progress = float(self._values["MemPercent"])
-        self.draw_widget_elements()
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
+        super().update()

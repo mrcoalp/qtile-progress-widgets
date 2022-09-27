@@ -81,17 +81,17 @@ class VolumeIcon(AwesomeWidget):
     def _get_data(self):
         return float(self._cmds.get()), self._cmds.is_muted()
 
-    def get_icon(self):
+    def get_icon(self, _=None):
         if self._is_muted:
             return super().get_icon(-1)
         return super().get_icon()
 
-    def get_icon_color(self):
+    def get_icon_color(self, _=None):
         if self._is_muted:
             return self.muted_color
         return super().get_icon_color()
 
-    def get_text_color(self):
+    def get_text_color(self, _=None):
         if self._is_muted:
             return self.muted_color
         return super().get_text_color()
@@ -103,28 +103,23 @@ class VolumeIcon(AwesomeWidget):
             return True
         return False
 
-    def draw(self):
-        self.drawer.clear(self.background or self.bar.background)
-        # draw progress bar
-        colors = {
-            "completed": self._is_muted and self.muted_color or None,
-            "remaining": self._is_muted and self.muted_color or None,
-        }
-        self.draw_widget_elements(**colors)
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
+    def update(self):
+        self.comp_color_override = self._is_muted and self.muted_color or None
+        self.rem_color_override = self._is_muted and self.muted_color or None
+        super().update()
 
     def cmd_inc(self):
         self._cmds.inc()
-        self.update()
+        self.check_draw_call()
 
     def cmd_dec(self):
         self._cmds.dec()
-        self.update()
+        self.check_draw_call()
 
     def cmd_toggle(self):
         self._cmds.toggle()
-        self.update()
+        self.check_draw_call()
 
     def cmd_mic_toggle(self):
         self._cmds.mic_toggle()
-        self.update()
+        self.check_draw_call()
