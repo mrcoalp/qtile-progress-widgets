@@ -53,21 +53,25 @@ class VolumeIcon(AwesomeWidget):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
-        ("timeout", 1, "How often in seconds the widget refreshes."),
         ("icons", [
             ((-1, -1), "\ufc5d"),
             ((0, 0), "\uf026"),
             ((0, 50), "\uf027"),
             ((50, 100), "\uf028"),
-        ], "Icons to present inside progress bar, based on progress thresholds."),
-        ("muted_color", None, "Color for icon and bar when muted.")
+        ], "Icons to present inside progress bar, based on progress limits."),
+        ("text_colors", [
+            ((-1, -1), "ff0000"),
+        ], "Text color, based on progress limits."),
+        ("progress_bar_colors", [
+            ((-1, -1), ("ff0000", "ff0000")),
+        ], "Defines different colors for each specified limits."),
     ]
 
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(VolumeIcon.defaults)
         self._cmds = _Commands(self.device, self.step)
-        self._progress, self._is_muted = self._get_data()
+        self.progress, self._is_muted = self._get_data()
 
         self.add_callbacks({
             "Button1": self.cmd_toggle,
@@ -88,25 +92,25 @@ class VolumeIcon(AwesomeWidget):
 
     def get_icon_color(self, _=None):
         if self._is_muted:
-            return self.muted_color
+            return super().get_icon_color(-1)
         return super().get_icon_color()
 
     def get_text_color(self, _=None):
         if self._is_muted:
-            return self.muted_color
+            return super().get_text_color(-1)
         return super().get_text_color()
+
+    def get_progress_bar_color(self, _=None):
+        if self._is_muted:
+            return super().get_progress_bar_color(-1)
+        return super().get_progress_bar_color()
 
     def is_update_required(self):
         level, is_muted = self._get_data()
-        if self._progress != level or self._is_muted != is_muted:
-            self._progress, self._is_muted = level, is_muted
+        if self.progress != level or self._is_muted != is_muted:
+            self.progress, self._is_muted = level, is_muted
             return True
         return False
-
-    def update(self):
-        self.comp_color_override = self._is_muted and self.muted_color or None
-        self.rem_color_override = self._is_muted and self.muted_color or None
-        super().update()
 
     def cmd_inc(self):
         self._cmds.inc()

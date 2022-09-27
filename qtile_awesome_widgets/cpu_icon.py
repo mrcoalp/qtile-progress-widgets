@@ -5,10 +5,9 @@ from .awesome_widget import AwesomeWidget
 
 class CPUIcon(AwesomeWidget):
     defaults = [
-        ("timeout", 1, "How often in seconds the widget refreshes."),
         ("icons", [
             ((0, 100), "\ue266"),
-        ], "Icons to present inside progress bar, based on progress thresholds."),
+        ], "Icons to present inside progress bar, based on progress limits."),
         ("icon_colors", [
             ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
@@ -17,20 +16,20 @@ class CPUIcon(AwesomeWidget):
             ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
         ], "Text color, based on progress limits."),
-        ("thresholds", [
+        ("progress_bar_colors", [
             ((50, 75), ("ffff00", "")),
             ((75, 100), ("ff0000", "")),
-        ], "Defines different colors for each specified threshold.")
+        ], "Defines different colors for each specified limits.")
     ]
 
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(CPUIcon.defaults)
-        self._progress = psutil.cpu_percent()
+        self.progress = psutil.cpu_percent()
 
     def is_update_required(self):
         progress = psutil.cpu_percent()
-        if progress != self._progress:
-            self._progress = progress
+        if progress != self.progress:
+            self.progress = progress
             return True
         return False

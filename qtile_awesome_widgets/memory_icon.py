@@ -5,10 +5,9 @@ from .awesome_widget import AwesomeWidget
 
 class MemoryIcon(AwesomeWidget):
     defaults = [
-        ("timeout", 1, "How often in seconds the widget refreshes."),
         ("icons", [
             ((0, 100), "\uf85a"),
-        ], "Icons to present inside progress bar, based on progress thresholds."),
+        ], "Icons to present inside progress bar, based on progress limits."),
         ("icon_colors", [
             ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
@@ -17,10 +16,10 @@ class MemoryIcon(AwesomeWidget):
             ((50, 75), "ffff00"),
             ((75, 100), "ff0000"),
         ], "Text color, based on progress limits."),
-        ("thresholds", [
+        ("progress_bar_colors", [
             ((50, 75), ("ffff00", "")),
             ((75, 100), ("ff0000", "")),
-        ], "Defines different colors for each specified threshold."),
+        ], "Defines different colors for each specified limits."),
         ("text_format", "{MemPercent:.0f}", "Format string to present text."),
         ("measure_mem", "M", "Measurement for Memory (G, M, K, B)"),
         ("measure_swap", "M", "Measurement for Swap (G, M, K, B)"),
@@ -59,5 +58,5 @@ class MemoryIcon(AwesomeWidget):
         return False
 
     def update(self):
-        self._progress = float(self._values["MemPercent"])
+        self.progress = float(self._values["MemPercent"])
         super().update()

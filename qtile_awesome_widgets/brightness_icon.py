@@ -70,14 +70,14 @@ class BrightnessIcon(AwesomeWidget):
             ((0, 30), "\uf5dd"),
             ((30, 80), "\uf5de"),
             ((80, 100), "\uf5df"),
-        ], "Icons to present inside progress bar, based on progress thresholds.")
+        ], "Icons to present inside progress bar, based on progress limits.")
     ]
 
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(BrightnessIcon.defaults)
         self._cmds = _Commands(self.program, self.step)
-        self._progress = float(self._cmds.get())
+        self.progress = float(self._cmds.get())
 
         self.add_callbacks({
             "Button4": self.cmd_inc,
@@ -89,8 +89,8 @@ class BrightnessIcon(AwesomeWidget):
 
     def is_update_required(self):
         progress = float(self._cmds.get())
-        if progress != self._progress:
-            self._progress = progress
+        if progress != self.progress:
+            self.progress = progress
             return True
         return False
 
