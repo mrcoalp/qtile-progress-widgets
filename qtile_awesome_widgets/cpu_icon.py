@@ -1,15 +1,17 @@
-from libqtile.widget import base
 import psutil
 
-from .round_progress_bar import RoundProgressBar
+from .awesome_widget import AwesomeWidget
 
 
-class CPUIcon(RoundProgressBar):
+class CPUIcon(AwesomeWidget):
     defaults = [
         ("timeout", 1, "How often in seconds the widget refreshes."),
         ("icons", [
             ((0, 100), "\ue266"),
         ], "Icons to present inside progress bar, based on progress thresholds."),
+        ("icon_colors", [
+            ((75, 100), "ff0000"),
+        ], "Icon color, based on progress limits."),
         ("thresholds", [
             ((0, 50), ("00ff00", "")),
             ((50, 75), ("ffff00", "")),
@@ -20,35 +22,16 @@ class CPUIcon(RoundProgressBar):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(CPUIcon.defaults)
-        self.add_defaults(base._TextBox.defaults)
-        self.update_level()
+        self._progress = psutil.cpu_percent()
 
-    def _configure(self, qtile, bar):
-        super()._configure(qtile, bar)
-        if self.timeout:
-            self.timeout_add(self.timeout, self.loop)
-
-    def get_icon(self):
-        for threshs, icon in self.icons:
-            if self._level >= threshs[0] and self._level <= threshs[1]:
-                return icon
-        return ""
-
-    def update_level(self):
-        self._level = round(psutil.cpu_percent(), 1)
-
-    def update(self):
-        self.update_level()
-        self.draw()
-
-    def loop(self):
-        self.update()
-        self.timeout_add(self.timeout, self.loop)
+    def is_update_required(self):
+        progress = psutil.cpu_percent()
+        if progress != self._progress:
+            self._progress = progress
+            return True
+        return False
 
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
-        # draw progress bar
-        self.draw_progress_bar(self._level)
-        # draw icon
-        self.draw_text_in_inner_circle(self.get_icon(), self.foreground, self.font, self.fontsize)
+        self.draw_widget_elements()
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)

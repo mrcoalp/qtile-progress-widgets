@@ -9,7 +9,7 @@ _logger = create_logger("BATTERY_ICON")
 
 class BatteryIcon(AwesomeWidget):
     defaults = [
-        ("charging_color", "00ff00", "Center circle (or text and icon) color, when charging."),
+        ("inner_charging_color", "00ff00", "Center circle (or text and icon) color, when charging."),
         ("timeout", 10, "How often in seconds the widget refreshes."),
         ("icons", [
             ((-1, -1), "\uf583"),
@@ -29,7 +29,7 @@ class BatteryIcon(AwesomeWidget):
             ((0, 10), "ff0000"),
         ], "Icon color, based on progress limits."),
         ("text_colors", [
-            ((-1, -1), "00ff00"),
+            ((-1, -1), "000000"),
             ((0, 10), "ff0000"),
         ], "Text color, based on progress limits."),
         ("thresholds", [
@@ -44,9 +44,9 @@ class BatteryIcon(AwesomeWidget):
         super().__init__(**config)
         self._battery = bt.load_battery(**config)
         self.add_defaults(BatteryIcon.defaults)
-        self._state, self._text = self._get_status()
+        self._state, self._progress = self._get_status()
 
-        _logger.debug("Initialized with current battery status: '%s' - %s%%", self._state, self._text)
+        _logger.debug("Initialized with current battery status: '%s' - %s%%", self._state, self._progress)
 
     def _get_status(self):
         status = self._battery.update_status()
@@ -57,11 +57,16 @@ class BatteryIcon(AwesomeWidget):
             return super().get_icon(-1)
         return super().get_icon()
 
+    def get_text_color(self):
+        if self._state == bt.BatteryState.CHARGING:
+            return super().get_text_color(-1)
+        return super().get_text_color()
+
     def is_update_required(self):
         state, level = self._get_status()
-        if state != self._state or level != self._text:
+        if state != self._state or level != self._progress:
             self._state = state
-            self._text = level
+            self._progress = level
             return True
         return False
 
@@ -69,6 +74,5 @@ class BatteryIcon(AwesomeWidget):
         self.drawer.clear(self.background or self.bar.background)
         # fill circle when a charging color is provided
         is_charging = self._state == bt.BatteryState.CHARGING
-        self._progress = float(self._text)
-        self.draw_widget_elements(is_charging and self.charging_color or None)
+        self.draw_widget_elements(inner_color=is_charging and self.inner_charging_color or None)
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)

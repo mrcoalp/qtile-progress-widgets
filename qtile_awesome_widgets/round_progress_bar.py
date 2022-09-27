@@ -6,6 +6,7 @@ from libqtile.widget import base
 
 class RoundProgressBar(base._Widget, base.PaddingMixin):
     defaults = [
+        ("foreground", "ffffff", "Foreground colour"),
         ("thresholds", [], "Defines different colors for each specified threshold"),
         ("thickness", 2, "Stroke thickness"),
     ]
@@ -14,7 +15,6 @@ class RoundProgressBar(base._Widget, base.PaddingMixin):
         super().__init__(bar.CALCULATED, **config)
         self.add_defaults(RoundProgressBar.defaults)
         self.add_defaults(base.PaddingMixin.defaults)
-        self.add_defaults(base._TextBox.defaults)
 
     def _configure(self, qtile, bar):
         base._Widget._configure(self, qtile, bar)

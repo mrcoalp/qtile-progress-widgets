@@ -5,16 +5,18 @@ from .round_progress_bar import RoundProgressBar
 
 class AwesomeWidget(RoundProgressBar):
     defaults = [
+        ("font", "sans", "Default font"),
+        ("fontsize", None, "Font size. Calculated if None."),
         ("timeout", 1, "How often in seconds the widget refreshes."),
         ("show_progress_bar", True, "Whether to draw round progress bar."),
         ("icons", [], "Icons to present inside progress bar, based on progress limits."),
         ("icon_colors", [], "Icon color, based on progress limits."),
+        ("icon_size", "", "Icon size. When empty, fontsize will be used."),
         ("show_text", "", "Show text method. Use 'with_icon' or 'without_icon'. Empty to not show."),
-        ("text_format", "{}", "Format string to present text."),
+        ("text_format", "{:.0f}", "Format string to present text."),
         ("text_offset", 0, "Text offset. Negative values can be used to bring it closer to icon."),
         ("text_colors", [], "Text color, based on progress limits."),
     ]
-    _text = ""
     _progress = 0
 
     def __init__(self, **config):
@@ -50,6 +52,9 @@ class AwesomeWidget(RoundProgressBar):
                 return color
         return self.foreground or "ffffff"
 
+    def get_text(self):
+        return self.text_format.format(self._progress)
+
     def get_text_color(self, progress=None):
         for limits, color in self.text_colors:
             if self._is_in_limits(progress or self._progress, limits):
@@ -69,14 +74,14 @@ class AwesomeWidget(RoundProgressBar):
         self.update()
         self.timeout_add(self.timeout, self.loop)
 
-    def draw_widget_elements(self, inner_color=None):
+    def draw_widget_elements(self, completed=None, remaining=None, inner_color=None):
         if self.show_progress_bar:
-            self.draw_progress_bar(self._progress)
+            self.draw_progress_bar(self._progress, completed, remaining)
 
         if inner_color:
             self.paint_inner_circle(inner_color)
 
-        icon_config = [self.get_icon(), self.get_icon_color(), self.font, self.fontsize]
+        icon_config = [self.get_icon(), self.get_icon_color(), self.font, self.icon_size or self.fontsize]
 
         if not self.show_text:
             # draw only the icon
@@ -85,7 +90,7 @@ class AwesomeWidget(RoundProgressBar):
         if self.show_text not in ["with_icon", "without_icon"]:
             raise ConfigError("Invalid 'show_text' method. Must be either 'with_icon' or 'without_icon'")
 
-        text_config = [self.text_format.format(self._text), self.get_text_color(), self.font, self.fontsize]
+        text_config = [self.get_text(), self.get_text_color(), self.font, self.fontsize]
 
         if self.show_text == "without_icon":
             # replace icon with text

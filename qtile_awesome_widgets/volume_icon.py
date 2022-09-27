@@ -2,21 +2,15 @@ import re
 import subprocess as sp
 
 from libqtile import confreader
-from libqtile.widget import base
 
+from .awesome_widget import AwesomeWidget
 from .logger import create_logger
-from .round_progress_bar import RoundProgressBar
 
 
 _logger = create_logger("VOLUME_ICON")
 
 
 class _Commands():
-    _get = []
-    _inc = []
-    _dec = []
-    _tog = []
-
     def __init__(self, device="pulse", step=5):
         if step < 1 or step > 100:
             raise confreader.ConfigError("Invalid step provided to VolumeIcon: '%s'" % step)
@@ -25,6 +19,7 @@ class _Commands():
         self._inc = ["amixer", "-D", device, "sset", "Master", "{}%+".format(step)]
         self._dec = ["amixer", "-D", device, "sset", "Master", "{}%-".format(step)]
         self._tog = ["amixer", "-D", device, "sset", "Master", "toggle"]
+        self._mic_tog = ["amixer", "-D", device, "sset", "Capture", "toggle"]
 
     def _safe_call(self, func, fallback=None):
         try:
@@ -50,8 +45,11 @@ class _Commands():
     def toggle(self):
         return self._safe_call(lambda: sp.call(self._tog))
 
+    def mic_toggle(self):
+        return self._safe_call(lambda: sp.call(self._mic_tog))
 
-class VolumeIcon(RoundProgressBar):
+
+class VolumeIcon(AwesomeWidget):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
@@ -68,55 +66,51 @@ class VolumeIcon(RoundProgressBar):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(VolumeIcon.defaults)
-        self.add_defaults(base._TextBox.defaults)
         self._cmds = _Commands(self.device, self.step)
-        self.update_level()
+        self._progress, self._is_muted = self._get_data()
 
         self.add_callbacks({
-            "Button1": lambda: self.cmd_toggle(),
-            "Button4": lambda: self.cmd_inc(),
-            "Button5": lambda: self.cmd_dec(),
+            "Button1": self.cmd_toggle,
+            "Button4": self.cmd_inc,
+            "Button5": self.cmd_dec,
         })
 
         _logger.info("Initialized with '%s'", self.device)
         _logger.debug("Current volume: %s", self._cmds.get())
 
-    def _configure(self, qtile, bar):
-        super()._configure(qtile, bar)
-        if self.timeout:
-            self.timeout_add(self.timeout, self.loop)
+    def _get_data(self):
+        return float(self._cmds.get()), self._cmds.is_muted()
 
     def get_icon(self):
-        for limits, icon in self.icons:
-            if self._is_muted and limits[0] == -1:
-                return icon
-            if self._level >= limits[0] and self._level <= limits[1]:
-                return icon
-        return ""
+        if self._is_muted:
+            return super().get_icon(-1)
+        return super().get_icon()
 
-    def update_level(self):
-        self._level = float(self._cmds.get())
-        self._is_muted = self._cmds.is_muted()
+    def get_icon_color(self):
+        if self._is_muted:
+            return self.muted_color
+        return super().get_icon_color()
 
-    def update(self):
-        self.update_level()
-        self.draw()
+    def get_text_color(self):
+        if self._is_muted:
+            return self.muted_color
+        return super().get_text_color()
 
-    def loop(self):
-        self.update()
-        self.timeout_add(self.timeout, self.loop)
+    def is_update_required(self):
+        level, is_muted = self._get_data()
+        if self._progress != level or self._is_muted != is_muted:
+            self._progress, self._is_muted = level, is_muted
+            return True
+        return False
 
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
         # draw progress bar
         colors = {
             "completed": self._is_muted and self.muted_color or None,
-            "remaining": self._is_muted and self.muted_color or None
+            "remaining": self._is_muted and self.muted_color or None,
         }
-        self.draw_progress_bar(self._level, **colors)
-        # draw icon
-        color = self._is_muted and self.muted_color or self.foreground
-        self.draw_text_in_inner_circle(self.get_icon(), color, self.font, self.fontsize)
+        self.draw_widget_elements(**colors)
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
 
     def cmd_inc(self):
@@ -129,4 +123,8 @@ class VolumeIcon(RoundProgressBar):
 
     def cmd_toggle(self):
         self._cmds.toggle()
+        self.update()
+
+    def cmd_mic_toggle(self):
+        self._cmds.mic_toggle()
         self.update()

@@ -1,10 +1,9 @@
 import subprocess as sp
 
 from libqtile import confreader
-from libqtile.widget import base
 
+from .awesome_widget import AwesomeWidget
 from .logger import create_logger
-from .round_progress_bar import RoundProgressBar
 
 
 _logger = create_logger("BRIGHTNESS_ICON")
@@ -62,7 +61,7 @@ class _Commands():
         return self._safe_call(lambda: sp.call(self._dec))
 
 
-class BrightnessIcon(RoundProgressBar):
+class BrightnessIcon(AwesomeWidget):
     defaults = [
         ("program", "brightnessctl", "Program to control brightness."),
         ("step", 5, "Increment/decrement percentage of brightness."),
@@ -77,46 +76,27 @@ class BrightnessIcon(RoundProgressBar):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(BrightnessIcon.defaults)
-        self.add_defaults(base._TextBox.defaults)
         self._cmds = _Commands(self.program, self.step)
-        self.update_level()
+        self._progress = float(self._cmds.get())
 
         self.add_callbacks({
-            "Button4": lambda: self.cmd_inc(),
-            "Button5": lambda: self.cmd_dec(),
+            "Button4": self.cmd_inc,
+            "Button5": self.cmd_dec,
         })
 
         _logger.info("Initialized with '%s'", self.program)
         _logger.debug("Current brightness: %s", self._cmds.get())
 
-    def _configure(self, qtile, bar):
-        super()._configure(qtile, bar)
-        if self.timeout:
-            self.timeout_add(self.timeout, self.loop)
-
-    def get_icon(self):
-        for threshs, icon in self.icons:
-            if self._level >= threshs[0] and self._level <= threshs[1]:
-                return icon
-        return ""
-
-    def update_level(self):
-        self._level = float(self._cmds.get())
-
-    def update(self):
-        self.update_level()
-        self.draw()
-
-    def loop(self):
-        self.update()
-        self.timeout_add(self.timeout, self.loop)
+    def is_update_required(self):
+        progress = float(self._cmds.get())
+        if progress != self._progress:
+            self._progress = progress
+            return True
+        return False
 
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
-        # draw progress bar
-        self.draw_progress_bar(self._level)
-        # draw icon
-        self.draw_text_in_inner_circle(self.get_icon(), self.foreground, self.font, self.fontsize)
+        self.draw_widget_elements()
         self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.length)
 
     def cmd_inc(self):
