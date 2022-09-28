@@ -1,3 +1,5 @@
+import html
+
 from libqtile import bar
 from libqtile.widget import base
 
@@ -95,6 +97,11 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
 
     def calculate_length(self):
         return self._total_length
+
+    def escape_text(self, text):
+        if not self.markup:
+            return text
+        return html.escape(text)
 
     def get_icon(self, progress=None):
         for limits, icon in self.icons:
