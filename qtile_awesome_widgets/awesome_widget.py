@@ -27,14 +27,13 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         ("text_colors", [], "Text color, based on progress limits."),
     ]
 
-    progress = 0
-    _icon_layout = None
-    _text_layout = None
-    _total_length = None
-
     def __init__(self, **config):
         super().__init__(bar.CALCULATED, **config)
         self.add_defaults(AwesomeWidget.defaults)
+        self.progress = 0
+        self._icon_layout = None
+        self._text_layout = None
+        self._total_length = None
 
     @staticmethod
     def _is_in_limits(value, limits):

@@ -10,11 +10,6 @@ _logger = create_logger("BRIGHTNESS_ICON")
 
 
 class _Commands():
-    _get = []
-    _set = []
-    _inc = []
-    _dec = []
-
     def __init__(self, program="brightnessctl", step=5):
         if step < 1 or step > 100:
             raise confreader.ConfigError("Invalid step provided to BrightnessIcon: '%s'" % step)

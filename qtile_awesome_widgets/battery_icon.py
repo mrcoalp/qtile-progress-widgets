@@ -40,7 +40,6 @@ class BatteryIcon(AwesomeWidget):
             ((-1, -1), "00ff00"),
         ], "Progress inner colors for each specified limit."),
     ]
-    _state = None
 
     def __init__(self, **config):
         super().__init__(**config)

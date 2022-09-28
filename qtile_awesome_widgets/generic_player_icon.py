@@ -13,20 +13,20 @@ _logger = create_logger("GENERIC_PLAYER_ICON")
 
 class GenericPlayerIcon(AwesomeWidget):
     defaults = [
-        ("mpris_player", "org.mpris.MediaPlayer2.spotify", "MPRIS 2 compatible player identifier."),
+        ("text_format", "<b>{title}</b> | {artist} | <i>{album}</i>", "Format string to present text."),
+        ("mpris_player", None, "MPRIS 2 compatible player identifier."),
         ("track_playback_progress", True, "Whether or not to track playback progress."),
         ("track_player_state", True, "Whether or not to listen to app state changes. Use it to update widget when app closes and opens."),
-        ("text_format", "<b>{title}</b> | {artist} | <i>{album}</i>", "Format string to present text."),
     ]
-    metadata = {}
-    track_info = {}
-    playback_status = "Stopped"
-    playback_position = 0
-    _active = False
 
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(GenericPlayerIcon.defaults)
+        self.metadata = {}
+        self.track_info = {}
+        self.playback_status = "Stopped"
+        self.playback_position = 0
+        self._active = False
 
     async def _config_async(self):
         subscribe = await add_signal_receiver(
@@ -64,6 +64,12 @@ class GenericPlayerIcon(AwesomeWidget):
         if "PlaybackStatus" in updated:
             self.playback_status = updated["PlaybackStatus"].value
         self._active = True
+
+        # data = ["%s - %s" % (key, value) for key, value in self.metadata.items()]
+        # info = ["%s - %s" % (key, value) for key, value in self.track_info.items()]
+        #
+        # _logger.debug("Received updated properties:\nMETADATA\n\t%s\nINFO\n\t%s\nSTATUS\n\t%s",
+        #               "\n\t".join(data), "\n\t".join(info), self.playback_status)
 
     def _update_track_info(self, metadata):
         self.metadata = {}
@@ -127,4 +133,4 @@ class GenericPlayerIcon(AwesomeWidget):
             asyncio.create_task(self._refresh_playback_progress(), name="qaw_gpi_refresh_playback_progress")
             length = self.metadata["mpris:length"]
             self.progress = length and float(self.playback_position / length * 100) or 0
-        return super().update()
+        super().update()
