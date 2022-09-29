@@ -1,13 +1,13 @@
 from libqtile.widget import battery as bt
 
-from .awesome_widget import AwesomeWidget
 from .logger import create_logger
+from .progress_widget import ProgressWidget
 
 
 _logger = create_logger("BATTERY_ICON")
 
 
-class BatteryIcon(AwesomeWidget):
+class BatteryIcon(ProgressWidget):
     defaults = [
         ("timeout", 10, "How often in seconds the widget refreshes."),
         ("icons", [

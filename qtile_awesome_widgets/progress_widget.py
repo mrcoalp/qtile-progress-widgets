@@ -5,10 +5,10 @@ from libqtile.confreader import ConfigError
 from libqtile.pangocffi import markup_escape_text
 from libqtile.widget import base
 
-from .round_progress_bar import ProgressBar
+from .progress_bar import ProgressBar
 
 
-class AwesomeWidget(base._Widget, base.PaddingMixin):
+class ProgressWidget(base._Widget, base.PaddingMixin):
     defaults = [
         ("font", "sans", "Default font"),
         ("fontsize", None, "Font size. Calculated if None."),
@@ -31,7 +31,7 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
 
     def __init__(self, **config):
         super().__init__(bar.CALCULATED, **config)
-        self.add_defaults(AwesomeWidget.defaults)
+        self.add_defaults(ProgressWidget.defaults)
         self.progress = 0
         self._icon_layout = None
         self._text_layout = None

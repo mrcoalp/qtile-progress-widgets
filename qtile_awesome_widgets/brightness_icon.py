@@ -2,8 +2,8 @@ import subprocess as sp
 
 from libqtile import confreader
 
-from .awesome_widget import AwesomeWidget
 from .logger import create_logger
+from .progress_widget import ProgressWidget
 
 
 _logger = create_logger("BRIGHTNESS_ICON")
@@ -56,7 +56,7 @@ class _Commands():
         return self._safe_call(lambda: sp.call(self._dec))
 
 
-class BrightnessIcon(AwesomeWidget):
+class BrightnessIcon(ProgressWidget):
     defaults = [
         ("program", "brightnessctl", "Program to control brightness."),
         ("step", 5, "Increment/decrement percentage of brightness."),

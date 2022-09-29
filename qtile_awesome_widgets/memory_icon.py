@@ -1,9 +1,9 @@
 import psutil
 
-from .awesome_widget import AwesomeWidget
+from .progress_widget import ProgressWidget
 
 
-class MemoryIcon(AwesomeWidget):
+class MemoryIcon(ProgressWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\uf85a"),

@@ -5,13 +5,13 @@ from dbus_next.constants import MessageType
 from dbus_next.signature import Variant
 from libqtile.utils import _send_dbus_message, add_signal_receiver
 
-from .awesome_widget import AwesomeWidget
 from .logger import create_logger
+from .progress_widget import ProgressWidget
 
 _logger = create_logger("GENERIC_PLAYER_ICON")
 
 
-class GenericPlayerIcon(AwesomeWidget):
+class GenericPlayerIcon(ProgressWidget):
     defaults = [
         (
             "text_format",

@@ -1,9 +1,9 @@
 import psutil
 
-from .awesome_widget import AwesomeWidget
+from .progress_widget import ProgressWidget
 
 
-class CPUIcon(AwesomeWidget):
+class CPUIcon(ProgressWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\ue266"),

@@ -3,8 +3,8 @@ import subprocess as sp
 
 from libqtile import confreader
 
-from .awesome_widget import AwesomeWidget
 from .logger import create_logger
+from .progress_widget import ProgressWidget
 
 
 _logger = create_logger("VOLUME_ICON")
@@ -49,7 +49,7 @@ class _Commands():
         return self._safe_call(lambda: sp.call(self._mic_tog))
 
 
-class VolumeIcon(AwesomeWidget):
+class VolumeIcon(ProgressWidget):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
