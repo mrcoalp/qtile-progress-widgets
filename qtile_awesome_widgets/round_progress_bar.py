@@ -32,7 +32,6 @@ class RoundProgressBar(PaddingMixin):
         if not inner:
             return
 
-        center = self.width / 2
         radius = (self.width - (self.padding * 2) - thickness) / 2
 
         self.drawer.ctx.new_sub_path()

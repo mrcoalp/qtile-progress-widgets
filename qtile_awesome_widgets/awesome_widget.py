@@ -1,6 +1,5 @@
-import html
-
 from libqtile import bar
+from libqtile.pangocffi import markup_escape_text
 from libqtile.widget import base
 
 from .round_progress_bar import RoundProgressBar
@@ -34,6 +33,7 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         self._icon_layout = None
         self._text_layout = None
         self._total_length = None
+        self._progress_bar = None
 
     @staticmethod
     def _is_in_limits(value, limits):
@@ -64,12 +64,14 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
             )
 
         if self.show_progress_bar:
+            # TODO(mrcoalp): handle vertical orientation
             self._progress_bar = RoundProgressBar(self.drawer, self.bar.height, self.bar.height, **self._user_config)
 
         if not self.text_mode or self.text_mode == "with_icon":
             self._icon_layout = create_layout(True)
 
         if self.text_mode in ["with_icon", "without_icon"]:
+            # TODO(mrcoalp): handle vertical orientation
             self._text_layout = create_layout()
 
         self.update()
@@ -89,9 +91,11 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         return False
 
     def _draw_text_in_inner_circle(self, layout):
-        # relative to round progress bar attributes
-        x = (self._progress_bar.width - layout.width) / 2
-        y = (self._progress_bar.height - layout.height) / 2
+        x, y = self.padding_x, (self.bar.height - layout.height) / 2
+        if self._progress_bar:
+            # account for progress bar
+            x = (self._progress_bar.width - layout.width) / 2
+            y = (self._progress_bar.height - layout.height) / 2
         layout.draw(x, y)
 
     def calculate_length(self):
@@ -100,7 +104,7 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
     def escape_text(self, text):
         if not self.markup:
             return text
-        return html.escape(text)
+        return markup_escape_text(text)
 
     def get_icon(self, progress=None):
         for limits, icon in self.icons:
@@ -145,25 +149,37 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         return False
 
     def update(self):
-        icon_config = dict(layout=self._icon_layout, text=self.get_icon(), colour=self.get_icon_color())
-        text_config = dict(layout=self._text_layout, text=self.get_text(), colour=self.get_text_color())
-
         if self._icon_layout:
-            self._update_layout(**icon_config)
+            self._update_layout(self._icon_layout, text=self.get_icon(), colour=self.get_icon_color())
+
         if self._text_layout:
-            self._update_layout(**text_config)
+            self._update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
 
         self._total_length = 0
+        padding = 0
 
         if self.show_progress_bar:
             self._total_length += self._progress_bar.width
+            # we can return when text is to be drawn inside progress bar or
+            # no text at all needs to be drawn
+            # total length, in this case will be the widgt of the progress bar
             if not self.text_mode or self.text_mode == "without_icon":
                 return
-        else:
+        elif self._icon_layout:
+            # add icon width and its padding to total length
+            # TODO(mrcoalp): handle vertical orientation
             self._total_length += self._icon_layout.width
+            # consider padding in both sides
+            padding += (self.padding_x * 2)
 
-        if self._text_layout.text and self.text_mode == "with_icon":
-            self._total_length += (self._text_layout.width + self.text_offset + (self.padding_x * 2))
+        if self._text_layout and self._text_layout.text:
+            # add text width and offsets to total length
+            self._total_length += self._text_layout.width + self.text_offset + self.padding_x
+            # add another padding when icon is not being drawn
+            if not self._icon_layout:
+                padding += self.padding_x
+
+        self._total_length += padding
 
     def check_draw_call(self):
         if not self.is_update_required():
@@ -220,12 +236,12 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
             # draw icon by itself, without progress bar
             x, y = self.padding_x, (self.bar.height - self._icon_layout.height) / 2
             self._icon_layout.draw(x, y)
-            text_start = self._icon_layout.width
+            text_start = self._icon_layout.width + (self.padding_x * 2)
 
         if not self._text_layout.text:
             return
 
-        x, y = self.padding_x + text_start + self.text_offset, (self.bar.height - self._text_layout.height) / 2
+        x, y = text_start + self.text_offset, (self.bar.height - self._text_layout.height) / 2
         self._text_layout.draw(x, y)
 
     def draw(self):
