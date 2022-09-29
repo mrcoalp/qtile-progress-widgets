@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from dbus_next.constants import MessageType
 from dbus_next.signature import Variant
@@ -7,94 +8,109 @@ from libqtile.utils import _send_dbus_message, add_signal_receiver
 from .awesome_widget import AwesomeWidget
 from .logger import create_logger
 
-
 _logger = create_logger("GENERIC_PLAYER_ICON")
 
 
 class GenericPlayerIcon(AwesomeWidget):
     defaults = [
-        ("text_format", "<b>{title}</b> | {artist} | <i>{album}</i>", "Format string to present text."),
+        (
+            "text_format",
+            "<b>{xesam_title}</b> | {xesam_artist} | <i>{xesam_album}</i>",
+            "Format string to present text."
+        ),
         ("mpris_player", None, "MPRIS 2 compatible player identifier."),
-        ("track_playback_progress", True, "Whether or not to track playback progress."),
-        ("track_player_state", True, "Whether or not to listen to app state changes. Use it to update widget when app closes and opens."),
     ]
 
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(GenericPlayerIcon.defaults)
         self.metadata = {}
-        self.track_info = {}
         self.playback_status = "Stopped"
         self.playback_position = 0
         self._active = False
+        self._state_change_pending = False
 
     async def _config_async(self):
-        subscribe = await add_signal_receiver(
-            lambda msg: asyncio.create_task(self._update_properties_changed(*msg.body)),
+        # listen to player updates
+        sub = await add_signal_receiver(
+            lambda msg: asyncio.create_task(self._on_properties_changed(*msg.body)),
             session_bus=True,
             signal_name="PropertiesChanged",
             bus_name=self.mpris_player,
             path="/org/mpris/MediaPlayer2",
             dbus_interface="org.freedesktop.DBus.Properties",
         )
-        if not subscribe:
+        if not sub:
             _logger.warning("Failed to add 'PropertiesChanged' signal to %s", self.mpris_player)
 
-        if self.track_player_state:
-            subscribe = await add_signal_receiver(
-                lambda msg: asyncio.create_task(self._update_player_state(*msg.body)),
-                session_bus=True,
-                signal_name="NameOwnerChanged",
-                dbus_interface="org.freedesktop.DBus",
-            )
-            if not subscribe:
-                _logger.warning("Failed to add 'NameOwnerChanged' signal to %s", self.mpris_player)
+        # listen to dbus appp state updates, to react when our client state changes
+        sub = await add_signal_receiver(
+            lambda msg: asyncio.create_task(self._on_name_owner_changed(*msg.body)),
+            session_bus=True,
+            signal_name="NameOwnerChanged",
+            dbus_interface="org.freedesktop.DBus",
+        )
+        if not sub:
+            _logger.warning("Failed to add 'NameOwnerChanged' signal to %s", self.mpris_player)
 
-    def _update_player_state(self, name, _, new):
-        if name != self.mpris_player:
-            return
-        self._active = len(new) > 0
-        self.update()
-
-    def _update_properties_changed(self, _, updated, __):
+    def _on_properties_changed(self, _, updated, __):
         if not self.configured:
             return
+
         if "Metadata" in updated:
-            self._update_track_info(updated["Metadata"].value)
+            self._update_metadata(updated["Metadata"].value)
+
         if "PlaybackStatus" in updated:
             self.playback_status = updated["PlaybackStatus"].value
+
         self._active = True
 
-        # data = ["%s - %s" % (key, value) for key, value in self.metadata.items()]
-        # info = ["%s - %s" % (key, value) for key, value in self.track_info.items()]
-        #
-        # _logger.debug("Received updated properties:\nMETADATA\n\t%s\nINFO\n\t%s\nSTATUS\n\t%s",
-        #               "\n\t".join(data), "\n\t".join(info), self.playback_status)
+        data = json.dumps(self.metadata, indent=2)
+        _logger.debug("%s updated:\nDATA: %s\nSTATUS: %s", self.mpris_player, data, self.playback_status)
 
-    def _update_track_info(self, metadata):
+        self._check_draw_call_on_signal()
+
+    def _on_name_owner_changed(self, name, _, new):
+        if name != self.mpris_player:
+            return
+
+        self._active = len(new) > 0
+        # to be handled on next update
+        self._state_change_pending = True
+
+        _logger.debug("%s changed state: %s", self.mpris_player, self._active)
+
+        self._check_draw_call_on_signal()
+
+    def _check_draw_call_on_signal(self):
+        # when timeout is set, no action is required. handled in next loop tick
+        if self.timeout > 0:
+            return
+        # else, we check for required draw call
+        self.check_draw_call()
+
+    def _update_metadata(self, metadata):
         self.metadata = {}
-        self.track_info = {}
-
         for key, variant in metadata.items():
             value = variant.value
-            if not key.startswith("xesam:"):
-                self.metadata[key] = value
-                continue
-            prop = key.split(":")[1]
+            # replace colons in key, to ease out the process of text formatting
+            prop = key.replace(":", "_")
             if isinstance(value, list):
                 value = "/".join((v for v in value if isinstance(v, str)))
-            self.track_info[prop] = value if not isinstance(value, str) else self.escape_text(value)
+            self.metadata[prop] = value if not isinstance(value, str) else self.escape_text(value)
 
     async def _refresh_metadata(self):
         data = {
             "Metadata": Variant("a{sv}", await self.get_player_property("Metadata")),
             "PlaybackStatus": Variant("s", await self.get_player_property("PlaybackStatus")),
         }
-        self._update_properties_changed(None, data, None)
+        self._on_properties_changed(None, data, None)
 
     async def _refresh_playback_progress(self):
-        position = await self.get_player_property("Position")
-        self.playback_position = position or 0
+        self.playback_position = await self.get_player_property("Position") or 0
+        length = self.metadata["mpris_length"]
+        # ensure length is not 0, to avoid division by zero
+        self.progress = length and float(self.playback_position / length * 100) or 0
 
     async def get_player_property(self, property):
         bus, message = await _send_dbus_message(
@@ -118,19 +134,26 @@ class GenericPlayerIcon(AwesomeWidget):
         return message.body[0].value
 
     def is_update_required(self):
-        return self._active or not self.track_player_state
+        return self._state_change_pending or self._active
 
     def get_text(self):
-        if not self._active or not self.track_info:
+        if not self._active or not self.metadata:
             return ""
-        return self.text_format.format(**self.track_info)
+        return self.text_format.format(**self.metadata)
 
     def update(self):
-        self.progress = 0
+        # reset state change on update
+        if self._state_change_pending:
+            self._state_change_pending = False
+        # clear data when player is not active
+        if not self._active:
+            self.progress = 0
+            self.metadata = {}
+        # refresh metadata when active
         if self._active and not self.metadata:
             asyncio.create_task(self._refresh_metadata(), name="qaw_gpq_refresh_metadata")
-        if self._active and self.track_playback_progress and "mpris:length" in self.metadata:
+        # refresh playback progress when active and option enabled
+        if self._active and self.show_progress_bar and "mpris_length" in self.metadata:
             asyncio.create_task(self._refresh_playback_progress(), name="qaw_gpi_refresh_playback_progress")
-            length = self.metadata["mpris:length"]
-            self.progress = length and float(self.playback_position / length * 100) or 0
+        # update widget
         super().update()

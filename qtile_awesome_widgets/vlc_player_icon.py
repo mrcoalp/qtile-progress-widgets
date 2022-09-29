@@ -7,7 +7,7 @@ class VLCPlayerIcon(GenericPlayerIcon):
             ((0, 100), "\ufa7b"),
         ], "Icons to present inside progress bar, based on progress limits."),
         ("text_mode", "with_icon", "Show text mode. Use 'with_icon' or 'without_icon'. Empty to not show."),
-        ("text_format", "{url}", "Format string to present text."),
+        ("text_format", "{xesam_url}", "Format string to present text."),
         ("mpris_player", "org.mpris.MediaPlayer2.vlc", "MPRIS 2 compatible player identifier."),
     ]
 
