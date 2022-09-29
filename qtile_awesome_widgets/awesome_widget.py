@@ -1,3 +1,5 @@
+import math
+
 from libqtile import bar
 from libqtile.confreader import ConfigError
 from libqtile.pangocffi import markup_escape_text
@@ -33,8 +35,8 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         self.progress = 0
         self._icon_layout = None
         self._text_layout = None
-        self._total_length = None
         self._progress_bar = None
+        self._total_length = 0
 
     @staticmethod
     def _is_in_limits(value, limits):
@@ -53,9 +55,6 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
 
         if self.text_mode and self.text_mode not in ["with_icon", "without_icon"]:
             raise ConfigError("Invalid text mode. Must either be None, 'with_icon' or 'without_icon'")
-
-        if not self.bar.horizontal and self.text_mode == "with_icon":
-            raise ConfigError("'with_icon' text mode only supported in horizontal orientation")
 
         size = self.oriented_size
 
@@ -79,7 +78,6 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
             self._icon_layout = create_layout(True)
 
         if self.text_mode in ["with_icon", "without_icon"]:
-            # TODO(mrcoalp): handle vertical orientation
             self._text_layout = create_layout()
 
         self.update()
@@ -88,12 +86,6 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
             return
 
         self.timeout_add(self.timeout, self.loop)
-
-    @property
-    def oriented_padding(self):
-        if self.bar.horizontal:
-            return self.padding_x
-        return self.padding_y
 
     @property
     def oriented_size(self):
@@ -108,22 +100,19 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
             return True
         return False
 
-    def _draw_text_in_inner_circle(self, layout):
-        x, y, padding_x, padding_y = 0, 0, 0, 0
+    def _get_oriented_coords(self, layout):
+        return self.padding, (self.oriented_size - layout.height) / 2
 
-        if self.bar.horizontal:
-            padding_x = self.padding_x
-            x = padding_x
-            y = (self.oriented_size - layout.height) / 2
-        else:
-            padding_y = self.padding_y
-            x = (self.oriented_size - layout.width) / 2
-            y = padding_y
+    def _draw_text_in_inner_circle(self, layout):
+        if not layout:
+            return
+
+        x, y = self._get_oriented_coords(layout)
 
         if self._progress_bar:
             # account for progress bar
-            x = (self._progress_bar.width + padding_x * 2 - layout.width) / 2
-            y = (self._progress_bar.height + padding_y * 2 - layout.height) / 2
+            x = (self._progress_bar.width + self.padding * 2 - layout.width) / 2
+            y = (self._progress_bar.height - layout.height) / 2
 
         layout.draw(x, y)
 
@@ -187,7 +176,7 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         self._total_length = 0
 
         if self.show_progress_bar:
-            self._total_length += self._progress_bar.width + self.oriented_padding * 2
+            self._total_length += self._progress_bar.width + self.padding * 2
             # we can return when text is to be drawn inside progress bar or
             # no text at all needs to be drawn
             # total length, in this case will be the widgt of the progress bar
@@ -196,11 +185,11 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         elif self._icon_layout:
             # add icon width and its padding to total length
             # TODO(mrcoalp): handle vertical orientation
-            self._total_length += self._icon_layout.width + self.oriented_padding * 2
+            self._total_length += self._icon_layout.width + self.padding * 2
 
         if self._text_layout and self._text_layout.text:
             # add text width and offsets to total length
-            self._total_length += self._text_layout.width + self.text_offset + self.padding_x * 2
+            self._total_length += self._text_layout.width + self.text_offset + self.padding * 2
 
     def check_draw_call(self):
         if not self.is_update_required():
@@ -265,25 +254,37 @@ class AwesomeWidget(base._Widget, base.PaddingMixin):
         if self.show_progress_bar:
             # draw inside progress bar
             self._draw_text_in_inner_circle(self._icon_layout)
-            text_start = self._progress_bar.width + self.padding_x * 2
+            text_start = self._progress_bar.width + self.padding * 2
         else:
             # draw icon by itself, without progress bar
-            x, y = self.padding_x, (self.bar.height - self._icon_layout.height) / 2
-            self._icon_layout.draw(x, y)
-            text_start = self._icon_layout.width + self.padding_x * 2
+            self._icon_layout.draw(*self._get_oriented_coords(self._icon_layout))
+            text_start = self._icon_layout.width + self.padding * 2
 
         self.draw_between_elements()
 
         if not self._text_layout.text:
             return self.draw_after_elements()
 
-        # text with icon only supported in horizontal orientation
-        x = self.padding_x + text_start + self.text_offset
-        y = (self.bar.height - self._text_layout.height) / 2
+        x, y = self._get_oriented_coords(self._text_layout)
+        x += text_start + self.text_offset
         self._text_layout.draw(x, y)
         self.draw_after_elements()
 
+    def draw_oriented(self):
+        self.drawer.ctx.save()
+        if not self.bar.horizontal:
+            # Left bar reads bottom to top
+            if self.bar.screen.left is self.bar:
+                self.drawer.ctx.rotate(-90 * math.pi / 180.0)
+                self.drawer.ctx.translate(-self.length, 0)
+            # Right bar is top to bottom
+            else:
+                self.drawer.ctx.translate(self.bar.width, 0)
+                self.drawer.ctx.rotate(90 * math.pi / 180.0)
+        self.draw_widget_elements()
+        self.drawer.ctx.restore()
+
     def draw(self):
         self.drawer.clear(self.background or self.bar.background)
-        self.draw_widget_elements()
-        self.drawer.draw(offsetx=self.offset, offsety=self.offsety, width=self.width, height=self.height)
+        self.draw_oriented()
+        self.drawer.draw(offsetx=self.offsetx, offsety=self.offsety, width=self.width, height=self.height)
