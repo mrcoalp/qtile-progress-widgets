@@ -18,6 +18,11 @@ class GenericPlayerIcon(ProgressWidget):
             "<b>{xesam_title}</b> | {xesam_artist} | <i>{xesam_album}</i>",
             "Format string to present text."
         ),
+        ("text_prefix_state", {
+            "Playing": "\uf04c ",
+            "Paused": "\uf04b ",
+            "Stopped": "\uf04d ",
+        }, "Text to prefix track info, per player state."),
         ("mpris_player", None, "MPRIS 2 compatible player identifier."),
     ]
 
@@ -29,6 +34,11 @@ class GenericPlayerIcon(ProgressWidget):
         self.playback_position = 0
         self._active = False
         self._state_change_pending = False
+        self.add_callbacks({
+            "Button1": self.cmd_play_pause,
+            "Button4": self.cmd_next,
+            "Button5": self.cmd_previous,
+        })
 
     async def _config_async(self):
         # listen to player updates
@@ -82,6 +92,27 @@ class GenericPlayerIcon(ProgressWidget):
 
         self._check_draw_call_on_signal()
 
+    async def _send_command(self, interface, cmd, signature="", *args):
+        bus, message = await _send_dbus_message(
+            True,
+            MessageType.METHOD_CALL,
+            self.mpris_player,
+            interface,
+            "/org/mpris/MediaPlayer2",
+            cmd,
+            signature,
+            [*args],
+        )
+        if bus:
+            bus.disconnect()
+
+        if message.message_type != MessageType.METHOD_RETURN:
+            _logger.warning("%s: failed to send cmd '%s' on interface: '%s'.", self.mpris_player, cmd, interface)
+            return None
+        if message.body:
+            return message.body[0].value
+        return None
+
     def _check_draw_call_on_signal(self):
         # when timeout is set, no action is required. handled in next loop tick
         if self.timeout > 0:
@@ -112,26 +143,13 @@ class GenericPlayerIcon(ProgressWidget):
         # ensure length is not 0, to avoid division by zero
         self.progress = length and float(self.playback_position / length * 100) or 0
 
+    def _player_cmd(self, cmd):
+        if self.mpris_player is None:
+            return
+        asyncio.create_task(self._send_command("org.mpris.MediaPlayer2.Player", cmd))
+
     async def get_player_property(self, property):
-        bus, message = await _send_dbus_message(
-            True,
-            MessageType.METHOD_CALL,
-            self.mpris_player,
-            "org.freedesktop.DBus.Properties",
-            "/org/mpris/MediaPlayer2",
-            "Get",
-            "ss",
-            ["org.mpris.MediaPlayer2.Player", property],
-        )
-
-        if bus:
-            bus.disconnect()
-
-        if message.message_type != MessageType.METHOD_RETURN:
-            _logger.warning("Failed to retrieve '%s' of player %s.", property, self.mpris_player)
-            return None
-
-        return message.body[0].value
+        return await self._send_command("org.freedesktop.DBus.Properties", "Get", "ss", "org.mpris.MediaPlayer2.Player", property)
 
     def is_update_required(self):
         return self._state_change_pending or self._active
@@ -139,7 +157,9 @@ class GenericPlayerIcon(ProgressWidget):
     def get_text(self):
         if not self._active or not self.metadata:
             return ""
-        return self.text_format.format(**self.metadata)
+        prefixes = self.text_prefix_state or {}
+        prefix = self.playback_status in prefixes and prefixes[self.playback_status] or ""
+        return prefix + self.text_format.format(**self.metadata)
 
     def update(self):
         # reset state change on update
@@ -157,3 +177,15 @@ class GenericPlayerIcon(ProgressWidget):
             asyncio.create_task(self._refresh_playback_progress(), name="qaw_gpi_refresh_playback_progress")
         # update widget
         super().update()
+
+    def cmd_play_pause(self):
+        self._player_cmd("PlayPause")
+
+    def cmd_next(self):
+        self._player_cmd("Next")
+
+    def cmd_previous(self):
+        self._player_cmd("Previous")
+
+    def cmd_stop(self):
+        self._player_cmd("Stop")
