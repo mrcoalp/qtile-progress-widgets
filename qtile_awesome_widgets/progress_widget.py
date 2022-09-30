@@ -212,16 +212,16 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         self.timeout_add(self.timeout, self.loop)
 
     def draw_before_elements(self):
-        pass
+        return 0
 
-    def draw_between_elements(self):
-        pass
+    def draw_between_elements(self, offset=0):
+        return 0
 
-    def draw_after_elements(self):
-        pass
+    def draw_after_elements(self, offset=0):
+        return 0
 
     def draw_widget_elements(self):
-        self.draw_before_elements()
+        extra_offset = self.draw_before_elements()
 
         if self.show_progress_bar:
             completed, remaining = self.get_progress_bar_color()
@@ -232,17 +232,19 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
                 completed=completed,
                 remaining=remaining,
                 inner=inner,
+                offset=extra_offset,
             )
+            extra_offset += self._progress_bar.total_width
 
         if not self.text_mode:
             # draw only the icon
             self._draw_text_in_inner_circle(self._icon_layout)
-            return self.draw_after_elements()
+            return self.draw_after_elements(extra_offset)
 
         if self.text_mode == "without_icon":
             # replace icon with text
             self._draw_text_in_inner_circle(self._text_layout)
-            return self.draw_after_elements()
+            return self.draw_after_elements(extra_offset)
 
         if self.text_mode != "with_icon":
             # invalid text mode
@@ -251,21 +253,21 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         if self.show_progress_bar:
             # draw inside progress bar
             self._draw_text_in_inner_circle(self._icon_layout)
-            text_start = self._progress_bar.total_width
         else:
             # draw icon by itself, without progress bar
-            self._icon_layout.draw(*self._get_oriented_coords(self._icon_layout))
-            text_start = self._icon_layout.width + self.padding_x * 2
+            x, y = self._get_oriented_coords(self._icon_layout)
+            self._icon_layout.draw(x + extra_offset, y)
+            extra_offset += self._icon_layout.width + self.padding_x * 2
 
-        self.draw_between_elements()
+        extra_offset += self.draw_between_elements(extra_offset)
 
         if not self._text_layout.text:
-            return self.draw_after_elements()
+            return self.draw_after_elements(extra_offset)
 
         x, y = self._get_oriented_coords(self._text_layout)
-        x += text_start + self.text_offset
+        x += self.text_offset + extra_offset
         self._text_layout.draw(x, y)
-        self.draw_after_elements()
+        self.draw_after_elements(extra_offset + self._text_layout.width)
 
     def draw_oriented(self):
         self.drawer.ctx.save()

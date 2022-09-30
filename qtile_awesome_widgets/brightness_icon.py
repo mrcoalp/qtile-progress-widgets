@@ -73,14 +73,12 @@ class BrightnessIcon(ProgressWidget):
         self.add_defaults(BrightnessIcon.defaults)
         self._cmds = _Commands(self.program, self.step)
         self.progress = float(self._cmds.get())
-
         self.add_callbacks({
+            "Button1": self.cmd_set,
             "Button4": self.cmd_inc,
             "Button5": self.cmd_dec,
         })
-
         _logger.info("Initialized with '%s'", self.program)
-        _logger.debug("Current brightness: %s", self._cmds.get())
 
     def is_update_required(self):
         progress = float(self._cmds.get())
@@ -95,4 +93,10 @@ class BrightnessIcon(ProgressWidget):
 
     def cmd_dec(self):
         self._cmds.dec()
+        self.check_draw_call()
+
+    def cmd_set(self, level=50):
+        if 0 > level > 100:
+            return _logger.warning("Tried to set invalid level: %s", level)
+        self._cmds.set(level)
         self.check_draw_call()

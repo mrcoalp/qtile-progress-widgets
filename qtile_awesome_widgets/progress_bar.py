@@ -30,7 +30,7 @@ class ProgressBar(PaddingMixin):
         size = max(self.width, self.height)
         self.radius = (size - (self.padding * 2)) / 2
 
-    def draw(self, percentage, thickness=2, completed=None, remaining=None, inner=None):
+    def draw(self, percentage, thickness=2, completed=None, remaining=None, inner=None, offset=0):
         end_angle = percentage / 100 * 2 * math.pi
 
         self.drawer.ctx.save()
@@ -39,20 +39,21 @@ class ProgressBar(PaddingMixin):
         self.drawer.ctx.set_line_width(thickness)
 
         radius = self.radius - thickness / 2
+        x = self.x + offset
 
         if inner:
             self.drawer.set_source_rgb(inner)
-            self.drawer.ctx.arc(self.x, self.y, radius, 0, 2 * math.pi)
+            self.drawer.ctx.arc(x, self.y, radius, 0, 2 * math.pi)
             self.drawer.ctx.fill()
 
         # draw completed
         self.drawer.set_source_rgb(completed or "ffffff")
-        self.drawer.ctx.arc(self.x, self.y, radius, 0, end_angle)
+        self.drawer.ctx.arc(x, self.y, radius, 0, end_angle)
         self.drawer.ctx.stroke()
 
         # draw remaining
         self.drawer.set_source_rgb(remaining or "000000")
-        self.drawer.ctx.arc(self.x, self.y, radius, end_angle, 2 * math.pi)
+        self.drawer.ctx.arc(x, self.y, radius, end_angle, 2 * math.pi)
         self.drawer.ctx.stroke()
 
         self.drawer.ctx.restore()

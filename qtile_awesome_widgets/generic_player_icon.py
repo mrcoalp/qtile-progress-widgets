@@ -7,6 +7,8 @@ from libqtile.utils import _send_dbus_message, add_signal_receiver
 
 from .logger import create_logger
 from .progress_widget import ProgressWidget
+from .utils import get_cairo_image
+
 
 _logger = create_logger("GENERIC_PLAYER_ICON")
 
@@ -23,6 +25,7 @@ class GenericPlayerIcon(ProgressWidget):
             "Paused": "\uf04b ",
             "Stopped": "\uf04d ",
         }, "Text to prefix track info, per player state."),
+        ("show_album_art", False, "Whether or not to show album art for the current playing track."),
         ("mpris_player", None, "MPRIS 2 compatible player identifier."),
     ]
 
@@ -34,6 +37,7 @@ class GenericPlayerIcon(ProgressWidget):
         self.playback_position = 0
         self._active = False
         self._state_change_pending = False
+        self._album_art_image = None
         self.add_callbacks({
             "Button1": self.cmd_play_pause,
             "Button4": self.cmd_next,
@@ -130,6 +134,21 @@ class GenericPlayerIcon(ProgressWidget):
                 value = "/".join((v for v in value if isinstance(v, str)))
             self.metadata[prop] = value if not isinstance(value, str) else self.escape_text(value)
 
+        if self.show_album_art and "mpris_artUrl" in self.metadata:
+            self._album_art_image = None
+            asyncio.create_task(self._fetch_album_art_surface(), name="qpw_gpi_fetch_art")
+
+    async def _fetch_album_art_surface(self):
+        url = self.metadata["mpris_artUrl"]
+        if not url:
+            return
+        try:
+            img = get_cairo_image(url, url=True)
+            img.resize(height=self.oriented_size - self.padding * 2)
+            self._album_art_image = img
+        except Exception as e:
+            _logger.error(str(e))
+
     async def _refresh_metadata(self):
         data = {
             "Metadata": Variant("a{sv}", await self.get_player_property("Metadata")),
@@ -143,13 +162,23 @@ class GenericPlayerIcon(ProgressWidget):
         # ensure length is not 0, to avoid division by zero
         self.progress = length and float(self.playback_position / length * 100) or 0
 
-    def _player_cmd(self, cmd):
+    def _player_cmd(self, cmd, signature="", *args):
         if self.mpris_player is None:
             return
-        asyncio.create_task(self._send_command("org.mpris.MediaPlayer2.Player", cmd))
+        asyncio.create_task(self._send_command("org.mpris.MediaPlayer2.Player", cmd, signature, *args))
+
+    def _get_album_art_length(self):
+        if not self._active:
+            return 0
+        if not self.show_album_art or not self._album_art_image:
+            return 0
+        return self._album_art_image.width + self.padding_x * 2
 
     async def get_player_property(self, property):
         return await self._send_command("org.freedesktop.DBus.Properties", "Get", "ss", "org.mpris.MediaPlayer2.Player", property)
+
+    def calculate_length(self):
+        return super().calculate_length() + self._get_album_art_length()
 
     def is_update_required(self):
         return self._state_change_pending or self._active
@@ -178,8 +207,17 @@ class GenericPlayerIcon(ProgressWidget):
         # update widget
         super().update()
 
-    def cmd_play_pause(self):
-        self._player_cmd("PlayPause")
+    def draw_between_elements(self, offset):
+        if not self._active:
+            return 0
+        if not self.show_album_art or not self._album_art_image:
+            return 0
+        self.drawer.ctx.save()
+        self.drawer.ctx.translate(offset + self.padding_x, self.padding)
+        self.drawer.ctx.set_source(self._album_art_image.pattern)
+        self.drawer.ctx.paint()
+        self.drawer.ctx.restore()
+        return self._get_album_art_length()
 
     def cmd_next(self):
         self._player_cmd("Next")
@@ -187,5 +225,25 @@ class GenericPlayerIcon(ProgressWidget):
     def cmd_previous(self):
         self._player_cmd("Previous")
 
+    def cmd_pause(self):
+        self._player_cmd("Pause")
+
+    def cmd_play_pause(self):
+        self._player_cmd("PlayPause")
+
     def cmd_stop(self):
         self._player_cmd("Stop")
+
+    def cmd_play(self):
+        self._player_cmd("Play")
+
+    def cmd_seek(self, offset):
+        # offset in microseconds
+        self._player_cmd("Seek", "x", offset)
+
+    def cmd_set_position(self, track_id, position):
+        # position in microseconds
+        self._player_cmd("SetPosition", "ox", track_id, position)
+
+    def cmd_open_url(self, url):
+        self._player_cmd("OpenUrl", "s", url)

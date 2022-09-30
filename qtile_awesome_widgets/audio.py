@@ -67,15 +67,12 @@ class _AmixerWidget(ProgressWidget):
         self.is_muted = False
         self.mixer = mixer
         self._cmds = _AmixerCommands(self.device, self.step, self.mixer)
-
-    def _configure(self, qtile, bar):
+        self.progress, self.is_muted = self._get_data()
         self.add_callbacks({
             "Button1": self.cmd_toggle,
             "Button4": self.cmd_inc,
             "Button5": self.cmd_dec,
         })
-        self.progress, self.is_muted = self._get_data()
-        super()._configure(qtile, bar)
 
     def _get_data(self):
         return self.cmd_get(), self.cmd_is_muted()
