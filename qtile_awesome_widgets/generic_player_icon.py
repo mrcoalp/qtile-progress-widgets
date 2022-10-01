@@ -20,11 +20,16 @@ class GenericPlayerIcon(ProgressWidget):
             "<b>{xesam_title}</b> | {xesam_artist} | <i>{xesam_album}</i>",
             "Format string to present text."
         ),
-        ("text_prefix_state", {
+        ("states_text", {
             "Playing": "\uf04c ",
             "Paused": "\uf04b ",
             "Stopped": "\uf04d ",
-        }, "Text to prefix track info, per player state."),
+        }, "Text to prefix track info (or show inside progress bar), per player state."),
+        (
+            "states_inside_bar",
+            False,
+            "Whether or not to show states text inside progress bar. When false, states text is show as a prefix to the text."
+        ),
         ("show_album_art", False, "Whether or not to show album art for the current playing track."),
         ("mpris_player", None, "MPRIS 2 compatible player identifier."),
     ]
@@ -105,7 +110,7 @@ class GenericPlayerIcon(ProgressWidget):
             "/org/mpris/MediaPlayer2",
             cmd,
             signature,
-            [*args],
+            list(args),
         )
         if bus:
             bus.disconnect()
@@ -136,14 +141,14 @@ class GenericPlayerIcon(ProgressWidget):
 
         if self.show_album_art and "mpris_artUrl" in self.metadata:
             self._album_art_image = None
-            asyncio.create_task(self._fetch_album_art_surface(), name="qpw_gpi_fetch_art")
+            asyncio.create_task(self._fetch_album_art(), name="qpw_gpi_fetch_art")
 
-    async def _fetch_album_art_surface(self):
-        url = self.metadata["mpris_artUrl"]
-        if not url:
+    async def _fetch_album_art(self):
+        art_url = self.metadata["mpris_artUrl"]
+        if not art_url:
             return
         try:
-            img = get_cairo_image(url, url=True)
+            img = get_cairo_image(art_url)
             img.resize(height=self.oriented_size - self.padding * 2)
             self._album_art_image = img
         except Exception as e:
@@ -186,9 +191,17 @@ class GenericPlayerIcon(ProgressWidget):
     def get_text(self):
         if not self._active or not self.metadata:
             return ""
-        prefixes = self.text_prefix_state or {}
-        prefix = self.playback_status in prefixes and prefixes[self.playback_status] or ""
-        return prefix + self.text_format.format(**self.metadata)
+        if self.states_inside_bar:
+            return self.text_format.format(**self.metadata)
+        states_text = self.states_text or {}
+        return states_text.get(self.playback_status, "") + self.text_format.format(**self.metadata)
+
+    def get_icon(self, progress=None):
+        icon = super().get_icon(progress)
+        if not self.states_inside_bar:
+            return icon
+        states_text = self.states_text or {}
+        return states_text.get(self.playback_status, icon)
 
     def update(self):
         # reset state change on update
