@@ -202,7 +202,7 @@ class GenericPlayerIcon(ProgressWidget):
         if self._active and not self.metadata:
             asyncio.create_task(self._refresh_metadata(), name="qaw_gpq_refresh_metadata")
         # refresh playback progress when active and option enabled
-        if self._active and self.show_progress_bar and "mpris_length" in self.metadata:
+        if self._active and self.progress_bar_active and "mpris_length" in self.metadata:
             asyncio.create_task(self._refresh_playback_progress(), name="qaw_gpi_refresh_playback_progress")
         # update widget
         super().update()

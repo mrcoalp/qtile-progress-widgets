@@ -4,7 +4,7 @@ from libqtile.widget.base import PaddingMixin
 
 
 class ProgressBar(PaddingMixin):
-    def __init__(self, drawer, bar, width, height, **config):
+    def __init__(self, drawer, bar, width, height, thickness, **config):
         super().__init__(**config)
         self.add_defaults(PaddingMixin.defaults)
 
@@ -30,15 +30,30 @@ class ProgressBar(PaddingMixin):
         size = max(self.width, self.height)
         self.radius = (size - (self.padding * 2)) / 2
 
-    def draw(self, percentage, thickness=2, completed=None, remaining=None, inner=None, offset=0):
+        self.thickness = thickness
+        self.percentage = 0
+        self.completed = "ffffff"
+        self.remaining = "000000"
+        self.inner = ""
+
+    def update(self, percentage, completed, remaining, inner):
+        self.percentage = percentage
+        self.completed = completed
+        self.remaining = remaining
+        self.inner = inner
+
+    def draw_self(self, offset=0):
+        return self.draw(self.percentage, self.completed, self.remaining, self.inner, offset)
+
+    def draw(self, percentage, completed=None, remaining=None, inner=None, offset=0):
         end_angle = percentage / 100 * 2 * math.pi
 
         self.drawer.ctx.save()
 
         self.drawer.ctx.scale(self.scale_x, self.scale_y)
-        self.drawer.ctx.set_line_width(thickness)
+        self.drawer.ctx.set_line_width(self.thickness)
 
-        radius = self.radius - thickness / 2
+        radius = self.radius - self.thickness / 2
         x = self.x + offset
 
         if inner:
