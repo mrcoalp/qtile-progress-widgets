@@ -3,9 +3,8 @@ import subprocess as sp
 
 from libqtile.confreader import ConfigError
 
-from .logger import create_logger
-from .logger import create_logger
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
+from .utils import create_logger
 
 
 _logger = create_logger("AMIXER")
@@ -49,7 +48,7 @@ class _AmixerCommands:
         return self._safe_call(lambda: sp.call(self._tog))
 
 
-class _AmixerWidget(ProgressWidget):
+class _AmixerWidget(ProgressCoreWidget):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
@@ -67,7 +66,7 @@ class _AmixerWidget(ProgressWidget):
         self.is_muted = False
         self.mixer = mixer
         self._cmds = _AmixerCommands(self.device, self.step, self.mixer)
-        self.progress, self.is_muted = self._get_data()
+        self.is_muted = False
         self.add_callbacks({
             "Button1": self.cmd_toggle,
             "Button4": self.cmd_inc,
@@ -97,29 +96,25 @@ class _AmixerWidget(ProgressWidget):
             return super().get_progress_bar_color(-1)
         return super().get_progress_bar_color()
 
-    def is_update_required(self):
-        level, is_muted = self._get_data()
-        if self.progress != level or self.is_muted != is_muted:
-            self.progress, self.is_muted = level, is_muted
-            return True
-        return False
+    def update_data(self):
+        self.progress, self.is_muted = self._get_data()
 
     def cmd_get(self):
         return float(self._cmds.get())
 
     def cmd_inc(self):
         self._cmds.inc()
-        self.check_draw_call()
+        self.update()
         _logger.debug("%s level increment. Current: %s", self.mixer, self.progress)
 
     def cmd_dec(self):
         self._cmds.dec()
-        self.check_draw_call()
+        self.update()
         _logger.debug("%s level decrement. Current: %s", self.mixer, self.progress)
 
     def cmd_toggle(self):
         self._cmds.toggle()
-        self.check_draw_call()
+        self.update()
         _logger.debug("%s state changed. Current muted state: %s", self.mixer, self.is_muted)
 
     def cmd_is_muted(self):
@@ -139,7 +134,7 @@ class VolumeIcon(_AmixerWidget):
     def __init__(self, **config):
         super().__init__("Master", **config)
         self.add_defaults(VolumeIcon.defaults)
-        _log_vol.info("Initialized with '%s'", self.device)
+        _log_vol.info("initialized with '%s'", self.device)
 
 
 class MicrophoneIcon(_AmixerWidget):
@@ -153,4 +148,4 @@ class MicrophoneIcon(_AmixerWidget):
     def __init__(self, **config):
         super().__init__("Capture", **config)
         self.add_defaults(MicrophoneIcon.defaults)
-        _log_mic.info("Initialized with '%s'", self.device)
+        _log_mic.info("initialized with '%s'", self.device)

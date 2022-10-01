@@ -6,19 +6,23 @@ from libqtile.pangocffi import markup_escape_text
 from libqtile.widget import base
 
 from .progress_bar import ProgressBar
+from .utils import create_logger
 
 
-class ProgressWidget(base._Widget, base.PaddingMixin):
+_logger = create_logger("CORE")
+
+
+class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     defaults = [
         ("font", "sans", "Default font"),
         ("fontsize", None, "Font size. Calculated if None."),
         ("fontshadow", None, "font shadow color, default is None(no shadow)"),
         ("markup", True, "Whether or not to use pango markup"),
         ("foreground", "ffffff", "Foreground colour"),
-        ("timeout", 1, "How often in seconds the widget refreshes."),
+        ("update_interval", 1, "How often in seconds the widget refreshes."),
         ("progress_bar_active", True, "Whether to draw round progress bar."),
         ("progress_bar_colors", [], "Progress bar colors for each specified limit."),
-        ("progress_inner_colors", [], "Progress inner color for each specified limit."),
+        ("progress_bar_inner_colors", [], "Progress inner color for each specified limit."),
         ("progress_bar_thickness", 2, "Progress bar stroke thickness."),
         ("icons", [], "Icons to present inside progress bar, based on progress limits."),
         ("icon_colors", [], "Icon color, based on progress limits."),
@@ -31,7 +35,7 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
 
     def __init__(self, **config):
         super().__init__(bar.CALCULATED, **config)
-        self.add_defaults(ProgressWidget.defaults)
+        self.add_defaults(ProgressCoreWidget.defaults)
         self.progress = 0
         self._icon_layout = None
         self._text_layout = None
@@ -77,25 +81,22 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         if self.text_mode in ("with_icon", "without_icon"):
             self._text_layout = create_layout()
 
-        self.update()
+    def timer_setup(self):
+        try:
+            if self.configured:
+                self.update()
+        except Exception as e:
+            _logger.exception("exception in timer loop: %s", str(e))
 
-        if self.timeout <= 0:
-            return
+        if self.update_interval:
+            self.timeout_add(self.update_interval, self.timer_setup)
 
-        self.timeout_add(self.timeout, self.loop)
+    def calculate_length(self):
+        return self._total_length
 
     @property
     def oriented_size(self):
         return self.bar.horizontal and self.bar.height or self.bar.width
-
-    def _has_something_to_draw(self):
-        if self.progress_bar_active:
-            return True
-        if self._icon_layout and self._icon_layout.text:
-            return True
-        if self._text_layout and self._text_layout.text:
-            return True
-        return False
 
     def _get_oriented_coords(self, layout):
         return self.padding_x, (self.oriented_size - layout.height) / 2
@@ -120,9 +121,6 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         x, y = self._get_oriented_coords(layout)
         layout.draw(x + offset, y)
         return layout.width + self.padding_x * 2
-
-    def calculate_length(self):
-        return self._total_length
 
     def escape_text(self, text):
         if not self.markup:
@@ -163,15 +161,20 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
 
     def get_progress_inner_color(self, progress=None):
         default = self.background or "000000"
-        for limits, color in self.progress_inner_colors:
+        for limits, color in self.progress_bar_inner_colors:
             if self._is_in_limits(progress or self.progress, limits):
                 return color or default
         return default
 
-    def is_update_required(self):
-        return False
+    def update_data(self):
+        """
+        To be overridden by derived widgets. Any required data should be updated
+        in this method. Make sure to defer heavy tasks, in order to prevent
+        blocking.
+        """
+        pass
 
-    def update(self):
+    def update_draw_elements(self):
         if self.progress_bar_active:
             completed, remaining = self.get_progress_bar_color()
             inner = self.get_progress_inner_color()
@@ -183,6 +186,17 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         if self._text_layout:
             self._update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
 
+    def is_update_required(self):
+        return True
+
+    def update(self):
+        if not self.is_update_required():
+            return _logger.debug("skipping update on '%s'", self.__class__.__name__)
+        self.update_data()
+        self.update_draw_elements()
+        self.check_draw_call()
+
+    def update_length(self):
         self._total_length = 0
 
         if self.progress_bar_active:
@@ -201,27 +215,15 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
             self._total_length += self._text_layout.width + self.text_offset + self.padding_x * 2
 
     def check_draw_call(self):
-        if not self.is_update_required():
-            # avoid unnecessary draw calls
-            return
-
         old_length = self._total_length
 
-        self.update()
-
-        if not self._has_something_to_draw():
-            # avoid unnecessary draw calls
-            return
+        self.update_length()
 
         if old_length != self._total_length:
             # draw entire bar when length changes
             return self.bar.draw()
 
         return self.draw()
-
-    def loop(self):
-        self.check_draw_call()
-        self.timeout_add(self.timeout, self.loop)
 
     def draw_before_elements(self):
         return 0
@@ -235,7 +237,7 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
     def draw_widget_elements(self):
         """
         Derived widgets can add custom elements, besides the ones defined
-        here. The draw_(before|between|after) methods can be overridden to
+        here. The draw_(before|between|after)_elements methods can be overridden to
         provide said elemets. Those methods should return the length drawn,
         to provide an offset for the rest of the elements.
         Widgets can end up with something like:
@@ -248,7 +250,7 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         offset = self.draw_before_elements()
 
         if self.progress_bar_active:
-            self._progress_bar.draw_self(offset)
+            self._progress_bar.draw_with_current_data(offset)
 
         if not self.text_mode:
             # draw only the icon
@@ -267,7 +269,7 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
         if self.progress_bar_active:
             # draw inside progress bar
             offset += self._draw_text_inside_bar(self._icon_layout, offset)
-        else:
+        elif self._icon_layout:
             # draw icon by itself, without progress bar
             x, y = self._get_oriented_coords(self._icon_layout)
             self._icon_layout.draw(x + offset, y)
@@ -275,7 +277,7 @@ class ProgressWidget(base._Widget, base.PaddingMixin):
 
         offset += self.draw_between_elements(offset)
 
-        if not self._text_layout.text:
+        if not self._text_layout or not self._text_layout.text:
             return self.draw_after_elements(offset)
 
         x, y = self._get_oriented_coords(self._text_layout)

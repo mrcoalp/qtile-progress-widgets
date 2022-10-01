@@ -1,9 +1,9 @@
 import psutil
 
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
 
 
-class CPUIcon(ProgressWidget):
+class CPUIcon(ProgressCoreWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\ue266"),
@@ -25,11 +25,6 @@ class CPUIcon(ProgressWidget):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(CPUIcon.defaults)
-        self.progress = psutil.cpu_percent()
 
-    def is_update_required(self):
-        progress = psutil.cpu_percent()
-        if progress != self.progress:
-            self.progress = progress
-            return True
-        return False
+    def update_data(self):
+        self.progress = psutil.cpu_percent()

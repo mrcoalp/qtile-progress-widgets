@@ -6,14 +6,14 @@ from dbus_next.signature import Variant
 from libqtile.utils import _send_dbus_message, add_signal_receiver
 
 from .logger import create_logger
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
 from .utils import get_cairo_image
 
 
 _logger = create_logger("GENERIC_PLAYER_ICON")
 
 
-class GenericPlayerIcon(ProgressWidget):
+class GenericPlayerIcon(ProgressCoreWidget):
     defaults = [
         (
             "text_format",
@@ -41,7 +41,7 @@ class GenericPlayerIcon(ProgressWidget):
         self.playback_status = "Stopped"
         self.playback_position = 0
         self._active = False
-        self._state_change_pending = False
+        self._state_change_pending = True
         self._album_art_image = None
         self.add_callbacks({
             "Button1": self.cmd_play_pause,
@@ -87,7 +87,7 @@ class GenericPlayerIcon(ProgressWidget):
         data = json.dumps(self.metadata, indent=2)
         _logger.debug("%s updated:\nDATA: %s\nSTATUS: %s", self.mpris_player, data, self.playback_status)
 
-        self._check_draw_call_on_signal()
+        self._check_refresh_on_signal()
 
     def _on_name_owner_changed(self, name, _, new):
         if name != self.mpris_player:
@@ -99,7 +99,7 @@ class GenericPlayerIcon(ProgressWidget):
 
         _logger.debug("%s changed state: %s", self.mpris_player, self._active)
 
-        self._check_draw_call_on_signal()
+        self._check_refresh_on_signal()
 
     async def _send_command(self, interface, cmd, signature="", *args):
         bus, message = await _send_dbus_message(
@@ -122,12 +122,12 @@ class GenericPlayerIcon(ProgressWidget):
             return message.body[0].value
         return None
 
-    def _check_draw_call_on_signal(self):
+    def _check_refresh_on_signal(self):
         # when timeout is set, no action is required. handled in next loop tick
-        if self.timeout > 0:
+        if self.update_interval > 0:
             return
         # else, we check for required draw call
-        self.check_draw_call()
+        self.update()
 
     def _update_metadata(self, metadata):
         self.metadata = {}
@@ -185,9 +185,6 @@ class GenericPlayerIcon(ProgressWidget):
     def calculate_length(self):
         return super().calculate_length() + self._get_album_art_length()
 
-    def is_update_required(self):
-        return self._state_change_pending or self._active
-
     def get_text(self):
         if not self._active or not self.metadata:
             return ""
@@ -203,7 +200,10 @@ class GenericPlayerIcon(ProgressWidget):
         states_text = self.states_text or {}
         return states_text.get(self.playback_status, icon)
 
-    def update(self):
+    def is_update_required(self):
+        return self._state_change_pending or self._active
+
+    def update_data(self):
         # reset state change on update
         if self._state_change_pending:
             self._state_change_pending = False
@@ -213,14 +213,12 @@ class GenericPlayerIcon(ProgressWidget):
             self.metadata = {}
         # refresh metadata when active
         if self._active and not self.metadata:
-            asyncio.create_task(self._refresh_metadata(), name="qaw_gpq_refresh_metadata")
+            asyncio.create_task(self._refresh_metadata(), name="refresh_metadata")
         # refresh playback progress when active and option enabled
         if self._active and self.progress_bar_active and "mpris_length" in self.metadata:
-            asyncio.create_task(self._refresh_playback_progress(), name="qaw_gpi_refresh_playback_progress")
-        # update widget
-        super().update()
+            asyncio.create_task(self._refresh_playback_progress(), name="refresh_playback_progress")
 
-    def draw_between_elements(self, offset):
+    def draw_between_elements(self, offset=0):
         if not self._active:
             return 0
         if not self.show_album_art or not self._album_art_image:

@@ -1,15 +1,15 @@
 from libqtile.widget import battery as bt
 
-from .logger import create_logger
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
+from .utils import create_logger
 
 
 _logger = create_logger("BATTERY_ICON")
 
 
-class BatteryIcon(ProgressWidget):
+class BatteryIcon(ProgressCoreWidget):
     defaults = [
-        ("timeout", 10, "How often in seconds the widget refreshes."),
+        ("update_interval", 10, "How often in seconds the widget refreshes."),
         ("icons", [
             ((-1, -1), "\uf583"),
             ((0, 10), "\uf579"),
@@ -36,7 +36,7 @@ class BatteryIcon(ProgressWidget):
             ((10, 50), ("ffff00", "")),
             ((50, 100), ("00ff00", "")),
         ], "Defines different colors for each specified limits."),
-        ("progress_inner_colors", [
+        ("progress_bar_inner_colors", [
             ((-1, -1), "00ff00"),
         ], "Progress inner colors for each specified limit."),
     ]
@@ -45,33 +45,27 @@ class BatteryIcon(ProgressWidget):
         super().__init__(**config)
         self._battery = bt.load_battery(**config)
         self.add_defaults(BatteryIcon.defaults)
-        self._state, self.progress = self._get_status()
-
-        _logger.debug("Initialized with current battery status: '%s' - %s%%", self._state, self.progress)
+        self.state = bt.BatteryState.UNKNOWN
+        _logger.debug("initialized")
 
     def _get_status(self):
         status = self._battery.update_status()
         return status.state, int(status.percent * 100)
 
     def get_icon(self, _=None):
-        if self._state == bt.BatteryState.CHARGING:
+        if self.state == bt.BatteryState.CHARGING:
             return super().get_icon(-1)
         return super().get_icon()
 
     def get_text_color(self, _=None):
-        if self._state == bt.BatteryState.CHARGING:
+        if self.state == bt.BatteryState.CHARGING:
             return super().get_text_color(-1)
         return super().get_text_color()
 
     def get_progress_inner_color(self, _=None):
-        if self._state == bt.BatteryState.CHARGING:
+        if self.state == bt.BatteryState.CHARGING:
             return super().get_progress_inner_color(-1)
         return super().get_progress_inner_color()
 
-    def is_update_required(self):
-        state, level = self._get_status()
-        if state != self._state or level != self.progress:
-            self._state = state
-            self.progress = level
-            return True
-        return False
+    def update_data(self):
+        self.state, self.progress = self._get_status()

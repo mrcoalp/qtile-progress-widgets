@@ -42,7 +42,7 @@ class ProgressBar(PaddingMixin):
         self.remaining = remaining
         self.inner = inner
 
-    def draw_self(self, offset=0):
+    def draw_with_current_data(self, offset=0):
         return self.draw(self.percentage, self.completed, self.remaining, self.inner, offset)
 
     def draw(self, percentage, completed=None, remaining=None, inner=None, offset=0):

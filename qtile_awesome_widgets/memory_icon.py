@@ -1,9 +1,9 @@
 import psutil
 
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
 
 
-class MemoryIcon(ProgressWidget):
+class MemoryIcon(ProgressCoreWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\uf85a"),
@@ -31,7 +31,7 @@ class MemoryIcon(ProgressWidget):
         self.add_defaults(MemoryIcon.defaults)
         self.calc_mem = self.measures[self.measure_mem]
         self.calc_swap = self.measures[self.measure_swap]
-        self._values = self._get_values()
+        self.values = {}
 
     def _get_values(self):
         mem = psutil.virtual_memory()
@@ -48,15 +48,10 @@ class MemoryIcon(ProgressWidget):
         return values
 
     def get_text(self):
-        return self.text_format.format(**self._values)
+        if not self.values:
+            return ""
+        return self.text_format.format(**self.values)
 
-    def is_update_required(self):
-        values = self._get_values()
-        if values != self._values:
-            self._values = values
-            return True
-        return False
-
-    def update(self):
-        self.progress = float(self._values["MemPercent"])
-        super().update()
+    def update_data(self):
+        self.values = self._get_values()
+        self.progress = float(self.values["MemPercent"])

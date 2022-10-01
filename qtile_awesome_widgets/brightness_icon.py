@@ -1,9 +1,9 @@
 import subprocess as sp
 
-from libqtile import confreader
+from libqtile.confreader import ConfigError
 
-from .logger import create_logger
-from .progress_widget import ProgressWidget
+from .progress_widget import ProgressCoreWidget
+from .utils import create_logger
 
 
 _logger = create_logger("BRIGHTNESS_ICON")
@@ -12,7 +12,7 @@ _logger = create_logger("BRIGHTNESS_ICON")
 class _Commands():
     def __init__(self, program="brightnessctl", step=5):
         if step < 1 or step > 100:
-            raise confreader.ConfigError("Invalid step provided to BrightnessIcon: '%s'" % step)
+            raise ConfigError("Invalid step provided to BrightnessIcon: '%s'" % step)
 
         step = str(step)
 
@@ -32,7 +32,7 @@ class _Commands():
             self._inc = ["xbacklight", "-inc", step]
             self._dec = ["xbacklight", "-dec", step]
         else:
-            raise confreader.ConfigError("Invalid program provided to BrightnessIcon: '%s'" % program)
+            raise ConfigError("Invalid program provided to BrightnessIcon: '%s'" % program)
 
     def _safe_call(self, func, fallback=None):
         try:
@@ -56,11 +56,11 @@ class _Commands():
         return self._safe_call(lambda: sp.call(self._dec))
 
 
-class BrightnessIcon(ProgressWidget):
+class BrightnessIcon(ProgressCoreWidget):
     defaults = [
         ("program", "brightnessctl", "Program to control brightness."),
         ("step", 5, "Increment/decrement percentage of brightness."),
-        ("timeout", 0, "How often in seconds the widget refreshes."),
+        ("update_interval", 0, "How often in seconds the widget refreshes."),
         ("icons", [
             ((0, 30), "\uf5dd"),
             ((30, 80), "\uf5de"),
@@ -72,31 +72,26 @@ class BrightnessIcon(ProgressWidget):
         super().__init__(**config)
         self.add_defaults(BrightnessIcon.defaults)
         self._cmds = _Commands(self.program, self.step)
-        self.progress = float(self._cmds.get())
         self.add_callbacks({
             "Button1": self.cmd_set,
             "Button4": self.cmd_inc,
             "Button5": self.cmd_dec,
         })
-        _logger.info("Initialized with '%s'", self.program)
+        _logger.info("initialized")
 
-    def is_update_required(self):
-        progress = float(self._cmds.get())
-        if progress != self.progress:
-            self.progress = progress
-            return True
-        return False
+    def update_data(self):
+        self.progress = float(self._cmds.get())
 
     def cmd_inc(self):
         self._cmds.inc()
-        self.check_draw_call()
+        self.update()
 
     def cmd_dec(self):
         self._cmds.dec()
-        self.check_draw_call()
+        self.update()
 
     def cmd_set(self, level=50):
         if 0 > level > 100:
             return _logger.warning("Tried to set invalid level: %s", level)
         self._cmds.set(level)
-        self.check_draw_call()
+        self.update()
