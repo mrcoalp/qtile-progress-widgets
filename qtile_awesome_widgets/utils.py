@@ -9,6 +9,9 @@ import requests
 import validators
 
 
+logging.disable(logging.DEBUG)
+
+
 def create_logger(name):
     formatter = logging.Formatter("[%(asctime)s][%(name)s][%(levelname)s]: %(message)s", "%Y/%m/%d %H:%M:%S")
     log_dir = os.path.join(site.getuserbase(), "share", "qtile-awesome-widgets")

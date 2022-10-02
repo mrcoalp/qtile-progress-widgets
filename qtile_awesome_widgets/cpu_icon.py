@@ -1,9 +1,9 @@
 import psutil
 
-from .progress_widget import ProgressCoreWidget
+from .progress_widget import ProgressInFutureWidget
 
 
-class CPUIcon(ProgressCoreWidget):
+class CPUIcon(ProgressInFutureWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\ue266"),

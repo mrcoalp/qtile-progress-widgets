@@ -5,9 +5,8 @@ from dbus_next.constants import MessageType
 from dbus_next.signature import Variant
 from libqtile.utils import _send_dbus_message, add_signal_receiver
 
-from .logger import create_logger
 from .progress_widget import ProgressCoreWidget
-from .utils import get_cairo_image
+from .utils import create_logger, get_cairo_image
 
 
 _logger = create_logger("GENERIC_PLAYER_ICON")
@@ -41,7 +40,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
         self.playback_status = "Stopped"
         self.playback_position = 0
         self._active = False
-        self._state_change_pending = True
+        self._pending_update = True
         self._album_art_image = None
         self.add_callbacks({
             "Button1": self.cmd_play_pause,
@@ -94,8 +93,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
             return
 
         self._active = len(new) > 0
-        # to be handled on next update
-        self._state_change_pending = True
+        self._pending_update = True
 
         _logger.debug("%s changed state: %s", self.mpris_player, self._active)
 
@@ -200,23 +198,27 @@ class GenericPlayerIcon(ProgressCoreWidget):
         states_text = self.states_text or {}
         return states_text.get(self.playback_status, icon)
 
-    def is_update_required(self):
-        return self._state_change_pending or self._active
-
     def update_data(self):
-        # reset state change on update
-        if self._state_change_pending:
-            self._state_change_pending = False
         # clear data when player is not active
-        if not self._active:
+        if not self._active and (self.progress or self.metadata):
             self.progress = 0
             self.metadata = {}
+            self.playback_status = "Stopped"
         # refresh metadata when active
         if self._active and not self.metadata:
             asyncio.create_task(self._refresh_metadata(), name="refresh_metadata")
         # refresh playback progress when active and option enabled
         if self._active and self.progress_bar_active and "mpris_length" in self.metadata:
             asyncio.create_task(self._refresh_playback_progress(), name="refresh_playback_progress")
+
+    def is_draw_update_required(self):
+        return self._pending_update or self._active
+
+    def update_draw(self):
+        super().update_draw()
+        # reset flag on update
+        if self._pending_update:
+            self._pending_update = False
 
     def draw_between_elements(self, offset=0):
         if not self._active:

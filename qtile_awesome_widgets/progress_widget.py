@@ -36,11 +36,11 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     def __init__(self, **config):
         super().__init__(bar.CALCULATED, **config)
         self.add_defaults(ProgressCoreWidget.defaults)
-        self.progress = 0
         self._icon_layout = None
         self._text_layout = None
         self._progress_bar = None
         self._total_length = 0
+        self.progress = 0
 
     @staticmethod
     def _is_in_limits(value, limits):
@@ -159,25 +159,37 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
                 return (comp or completed, rem or remaining)
         return (completed, remaining)
 
-    def get_progress_inner_color(self, progress=None):
+    def get_progress_bar_inner_color(self, progress=None):
         default = self.background or "000000"
         for limits, color in self.progress_bar_inner_colors:
             if self._is_in_limits(progress or self.progress, limits):
                 return color or default
         return default
 
+    def update(self):
+        self.update_data()
+        self.update_draw()
+
     def update_data(self):
         """
         To be overridden by derived widgets. Any required data should be updated
-        in this method. Make sure to defer heavy tasks, in order to prevent
-        blocking.
+        in this method.
         """
         pass
+
+    def update_draw(self):
+        if not self.is_draw_update_required():
+            return _logger.debug("skipping update on '%s'", self.__class__.__name__)
+        self.update_draw_elements()
+        self.draw_call()
+
+    def is_draw_update_required(self):
+        return True
 
     def update_draw_elements(self):
         if self.progress_bar_active:
             completed, remaining = self.get_progress_bar_color()
-            inner = self.get_progress_inner_color()
+            inner = self.get_progress_bar_inner_color()
             self._progress_bar.update(self.progress, completed, remaining, inner)
 
         if self._icon_layout:
@@ -186,17 +198,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if self._text_layout:
             self._update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
 
-    def is_update_required(self):
-        return True
-
-    def update(self):
-        if not self.is_update_required():
-            return _logger.debug("skipping update on '%s'", self.__class__.__name__)
-        self.update_data()
-        self.update_draw_elements()
-        self.check_draw_call()
-
-    def update_length(self):
+    def update_draw_length(self):
         self._total_length = 0
 
         if self.progress_bar_active:
@@ -214,10 +216,10 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
             # add text width and offsets to total length
             self._total_length += self._text_layout.width + self.text_offset + self.padding_x * 2
 
-    def check_draw_call(self):
+    def draw_call(self):
         old_length = self._total_length
 
-        self.update_length()
+        self.update_draw_length()
 
         if old_length != self._total_length:
             # draw entire bar when length changes
@@ -281,18 +283,17 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
             return self.draw_after_elements(offset)
 
         x, y = self._get_oriented_coords(self._text_layout)
-        x += self.text_offset + offset
-        self._text_layout.draw(x, y)
+        self._text_layout.draw(x + self.text_offset + offset, y)
         self.draw_after_elements(offset + self._text_layout.width + self.padding_x * 2)
 
     def draw_oriented(self):
         self.drawer.ctx.save()
         if not self.bar.horizontal:
-            # Left bar reads bottom to top
+            # left bar reads bottom to top
             if self.bar.screen.left is self.bar:
                 self.drawer.ctx.rotate(-90 * math.pi / 180.0)
                 self.drawer.ctx.translate(-self.length, 0)
-            # Right bar is top to bottom
+            # right bar is top to bottom
             else:
                 self.drawer.ctx.translate(self.bar.width, 0)
                 self.drawer.ctx.rotate(90 * math.pi / 180.0)
@@ -303,3 +304,24 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         self.drawer.clear(self.background or self.bar.background)
         self.draw_oriented()
         self.drawer.draw(offsetx=self.offsetx, offsety=self.offsety, width=self.width, height=self.height)
+
+
+class ProgressInFutureWidget(ProgressCoreWidget):
+    def timer_setup(self):
+        def on_done(update_data):
+            try:
+                update_data.result()
+            except Exception:
+                _logger.exception("update_data() raised exceptions, not rescheduling")
+
+            try:
+                self.update_draw()
+                if self.update_interval is not None:
+                    self.timeout_add(self.update_interval, self.timer_setup)
+                else:
+                    self.timer_setup()
+            except Exception:
+                _logger.exception("failed to reschedule.")
+
+        self.future = self.qtile.run_in_executor(self.update_data)
+        self.future.add_done_callback(on_done)

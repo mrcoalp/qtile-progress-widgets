@@ -1,13 +1,13 @@
 from libqtile.widget import battery as bt
 
-from .progress_widget import ProgressCoreWidget
+from .progress_widget import ProgressInFutureWidget
 from .utils import create_logger
 
 
 _logger = create_logger("BATTERY_ICON")
 
 
-class BatteryIcon(ProgressCoreWidget):
+class BatteryIcon(ProgressInFutureWidget):
     defaults = [
         ("update_interval", 10, "How often in seconds the widget refreshes."),
         ("icons", [
@@ -43,8 +43,8 @@ class BatteryIcon(ProgressCoreWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self._battery = bt.load_battery(**config)
         self.add_defaults(BatteryIcon.defaults)
+        self._battery = bt.load_battery(**config)
         self.state = bt.BatteryState.UNKNOWN
         _logger.debug("initialized")
 
@@ -62,10 +62,10 @@ class BatteryIcon(ProgressCoreWidget):
             return super().get_text_color(-1)
         return super().get_text_color()
 
-    def get_progress_inner_color(self, _=None):
+    def get_progress_bar_inner_color(self, _=None):
         if self.state == bt.BatteryState.CHARGING:
-            return super().get_progress_inner_color(-1)
-        return super().get_progress_inner_color()
+            return super().get_progress_bar_inner_color(-1)
+        return super().get_progress_bar_inner_color()
 
     def update_data(self):
         self.state, self.progress = self._get_status()
