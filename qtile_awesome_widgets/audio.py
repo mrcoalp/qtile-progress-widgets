@@ -12,15 +12,39 @@ _log_vol = create_logger("VOLUME_ICON")
 _log_mic = create_logger("MIC_ICON")
 
 
-class _AmixerCommands:
-    def __init__(self, device="pulse", step=5, mixer="Master"):
-        if step < 1 or step > 100:
-            raise ConfigError("Invalid step provided to VolumeIcon: '%s'" % step)
+class AudioControls:
+    def __init__(self, device, step, channel):
+        if 1 > step > 100:
+            raise ConfigError("Invalid step provided to AudioCommands: '%s'" % step)
 
-        self._get = ["amixer", "-D", device, "sget", mixer]
-        self._inc = ["amixer", "-D", device, "sset", mixer, "{}%+".format(step)]
-        self._dec = ["amixer", "-D", device, "sset", mixer, "{}%-".format(step)]
-        self._tog = ["amixer", "-D", device, "sset", mixer, "toggle"]
+        self.device = device
+        self.step = step
+        self.channel = channel
+
+    def get(self):
+        raise NotImplemented
+
+    def is_muted(self):
+        raise NotImplemented
+
+    def inc(self):
+        raise NotImplemented
+
+    def dec(self):
+        raise NotImplemented
+
+    def toggle(self):
+        raise NotImplemented
+
+
+class _AmixerControls(AudioControls):
+    def __init__(self, device="pulse", step=5, channel="Master"):
+        super().__init__(device, step, channel)
+
+        self._get = ["amixer", "-D", device, "sget", channel]
+        self._inc = ["amixer", "-D", device, "sset", channel, "{}%+".format(step)]
+        self._dec = ["amixer", "-D", device, "sset", channel, "{}%-".format(step)]
+        self._tog = ["amixer", "-D", device, "sset", channel, "toggle"]
 
     @staticmethod
     def _safe_call(func, fallback=None):
@@ -48,10 +72,17 @@ class _AmixerCommands:
         return self._safe_call(lambda: sp.call(self._tog))
 
 
-class _AmixerWidget(ProgressCoreWidget):
+class AudioWidget(ProgressCoreWidget):
     defaults = [
         ("device", "pulse", "Device name to control"),
         ("step", 5, "Increment/decrement percentage of volume."),
+        ("channel", "Master", "Audio channel."),
+        (
+            "controls",
+            None,
+            "AudioControls instance to use. Leaving None will fallack to _AmixerControls. \
+            Make sure to have it installed in your system, in this case."
+        ),
         ("text_colors", [
             ((-1, -1), "ff0000"),
         ], "Text color, based on progress limits."),
@@ -60,18 +91,19 @@ class _AmixerWidget(ProgressCoreWidget):
         ], "Defines different colors for each specified limits."),
     ]
 
-    def __init__(self, mixer, **config):
+    def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(_AmixerWidget.defaults)
-        self.is_muted = False
-        self.mixer = mixer
-        self._cmds = _AmixerCommands(self.device, self.step, self.mixer)
+        self.add_defaults(AudioWidget.defaults)
         self.is_muted = False
         self.add_callbacks({
             "Button1": self.cmd_toggle,
             "Button4": self.cmd_inc,
             "Button5": self.cmd_dec,
         })
+
+    def _configure(self, qtile, bar):
+        super()._configure(qtile, bar)
+        self.controls = self.controls or _AmixerControls(self.device, self.step, self.channel)
 
     def _get_data(self):
         return self.cmd_get(), self.cmd_is_muted()
@@ -100,28 +132,25 @@ class _AmixerWidget(ProgressCoreWidget):
         self.progress, self.is_muted = self._get_data()
 
     def cmd_get(self):
-        return float(self._cmds.get())
+        return float(self.controls.get())
 
     def cmd_inc(self):
-        self._cmds.inc()
+        self.controls.inc()
         self.update()
-        _logger.debug("%s level increment. Current: %s", self.mixer, self.progress)
 
     def cmd_dec(self):
-        self._cmds.dec()
+        self.controls.dec()
         self.update()
-        _logger.debug("%s level decrement. Current: %s", self.mixer, self.progress)
 
     def cmd_toggle(self):
-        self._cmds.toggle()
+        self.controls.toggle()
         self.update()
-        _logger.debug("%s state changed. Current muted state: %s", self.mixer, self.is_muted)
 
     def cmd_is_muted(self):
-        return self._cmds.is_muted()
+        return self.controls.is_muted()
 
 
-class VolumeIcon(_AmixerWidget):
+class VolumeIcon(AudioWidget):
     defaults = [
         ("icons", [
             ((-1, -1), "\ufc5d"),
@@ -132,20 +161,21 @@ class VolumeIcon(_AmixerWidget):
     ]
 
     def __init__(self, **config):
-        super().__init__("Master", **config)
+        super().__init__(**config)
         self.add_defaults(VolumeIcon.defaults)
         _log_vol.info("initialized with '%s'", self.device)
 
 
-class MicrophoneIcon(_AmixerWidget):
+class MicrophoneIcon(AudioWidget):
     defaults = [
         ("icons", [
             ((-1, -1), "\uf131"),
             ((0, 100), "\uf130"),
         ], "Icons to present inside progress bar, based on progress limits."),
+        ("channel", "Capture", "Audio channel."),
     ]
 
     def __init__(self, **config):
-        super().__init__("Capture", **config)
+        super().__init__(**config)
         self.add_defaults(MicrophoneIcon.defaults)
         _log_mic.info("initialized with '%s'", self.device)
