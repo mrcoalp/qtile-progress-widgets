@@ -80,7 +80,12 @@ class BrightnessIcon(ProgressCoreWidget):
         _logger.info("initialized")
 
     def update_data(self):
+        progress = self.progress
         self.progress = float(self._cmds.get())
+        self.pending_update = progress != self.progress
+
+    def is_draw_update_required(self):
+        return self.pending_update
 
     def cmd_inc(self):
         self._cmds.inc()

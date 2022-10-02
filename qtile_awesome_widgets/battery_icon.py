@@ -68,4 +68,9 @@ class BatteryIcon(ProgressInFutureWidget):
         return super().get_progress_bar_inner_color()
 
     def update_data(self):
+        state, progress = self.state, self.progress
         self.state, self.progress = self._get_status()
+        self.pending_update = state != self.state or progress != self.progress
+
+    def is_draw_update_required(self):
+        return self.pending_update

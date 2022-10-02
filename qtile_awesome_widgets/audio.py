@@ -129,7 +129,12 @@ class AudioWidget(ProgressCoreWidget):
         return super().get_progress_bar_color()
 
     def update_data(self):
+        progress, is_muted = self.progress, self.is_muted
         self.progress, self.is_muted = self._get_data()
+        self.pending_update = self.progress != progress or self.is_muted != is_muted
+
+    def is_draw_update_required(self):
+        return self.pending_update
 
     def cmd_get(self):
         return float(self.controls.get())

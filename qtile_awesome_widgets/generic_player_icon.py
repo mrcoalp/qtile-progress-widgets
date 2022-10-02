@@ -40,7 +40,6 @@ class GenericPlayerIcon(ProgressCoreWidget):
         self.playback_status = "Stopped"
         self.playback_position = 0
         self._active = False
-        self._pending_update = True
         self._album_art_image = None
         self.add_callbacks({
             "Button1": self.cmd_play_pause,
@@ -212,13 +211,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
             asyncio.create_task(self._refresh_playback_progress(), name="refresh_playback_progress")
 
     def is_draw_update_required(self):
-        return self._pending_update or self._active
-
-    def update_draw(self):
-        super().update_draw()
-        # reset flag on update
-        if self._pending_update:
-            self._pending_update = False
+        return self.pending_update or self._active
 
     def draw_between_elements(self, offset=0):
         if not self._active:

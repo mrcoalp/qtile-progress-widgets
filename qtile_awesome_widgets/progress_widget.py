@@ -40,6 +40,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         self._text_layout = None
         self._progress_bar = None
         self._total_length = 0
+        self.pending_update = True
         self.progress = 0
 
     @staticmethod
@@ -169,6 +170,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     def update(self):
         self.update_data()
         self.update_draw()
+        self.draw_call()
 
     def update_data(self):
         """
@@ -181,7 +183,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if not self.is_draw_update_required():
             return _logger.debug("skipping update on '%s'", self.__class__.__name__)
         self.update_draw_elements()
-        self.draw_call()
+        self.pending_update = False
 
     def is_draw_update_required(self):
         return True
@@ -316,6 +318,8 @@ class ProgressInFutureWidget(ProgressCoreWidget):
 
             try:
                 self.update_draw()
+                self.draw_call()
+
                 if self.update_interval is not None:
                     self.timeout_add(self.update_interval, self.timer_setup)
                 else:
