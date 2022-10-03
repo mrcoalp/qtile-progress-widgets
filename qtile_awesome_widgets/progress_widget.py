@@ -34,8 +34,12 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     ]
 
     def __init__(self, **config):
+        if not "name" in config:
+            config["name"] = "progress_" + self.__class__.__name__.lower()
+
         super().__init__(bar.CALCULATED, **config)
         self.add_defaults(ProgressCoreWidget.defaults)
+
         self._icon_layout = None
         self._text_layout = None
         self._progress_bar = None
@@ -170,7 +174,6 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     def update(self):
         self.update_data()
         self.update_draw()
-        self.draw_call()
 
     def update_data(self):
         """
@@ -181,9 +184,9 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
 
     def update_draw(self):
         if not self.is_draw_update_required():
-            return _logger.debug("skipping update on '%s'", self.__class__.__name__)
+            return _logger.debug("skipping update on '%s'", self.name)
         self.update_draw_elements()
-        self.pending_update = False
+        self.draw_call()
 
     def is_draw_update_required(self):
         return True
@@ -199,6 +202,8 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
 
         if self._text_layout:
             self._update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
+
+        self.pending_update = False
 
     def update_draw_length(self):
         self._total_length = 0
@@ -307,6 +312,13 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         self.draw_oriented()
         self.drawer.draw(offsetx=self.offsetx, offsety=self.offsety, width=self.width, height=self.height)
 
+    def finalize(self):
+        if self._icon_layout:
+            self._icon_layout.finalize()
+        if self._text_layout:
+            self._text_layout.finalize()
+        return super().finalize()
+
 
 class ProgressInFutureWidget(ProgressCoreWidget):
     def timer_setup(self):
@@ -318,7 +330,6 @@ class ProgressInFutureWidget(ProgressCoreWidget):
 
             try:
                 self.update_draw()
-                self.draw_call()
 
                 if self.update_interval is not None:
                     self.timeout_add(self.update_interval, self.timer_setup)

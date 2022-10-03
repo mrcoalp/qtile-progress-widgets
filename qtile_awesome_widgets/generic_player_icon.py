@@ -92,7 +92,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
             return
 
         self._active = len(new) > 0
-        self._pending_update = True
+        self.pending_update = True
 
         _logger.debug("%s changed state: %s", self.mpris_player, self._active)
 
