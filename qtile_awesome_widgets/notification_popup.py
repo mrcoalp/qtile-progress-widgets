@@ -1,0 +1,125 @@
+from libqtile.pangocffi import markup_escape_text
+from libqtile.popup import Popup
+
+
+class NotificationPopup:
+    def __init__(
+            self,
+            manager,
+            summary,
+            on_timeout,
+            on_click,
+            app_name="",
+            body="",
+            image=None,
+            lifetime=None,
+            **config
+    ):
+        self.manager = manager
+
+        self.popup = Popup(manager.qtile, **config)
+        self.popup.layout.width = self.popup.width - self.popup.horizontal_padding * 2
+        self.popup.layout.markup = config.get("markup", False)
+        self.popup.text = self._get_text(summary, body, app_name, config)
+
+        if image:
+            img_w = config.get("image_width", 0)
+            if image.width > img_w:
+                image.resize(width=img_w)
+            self.popup.layout.width -= image.width + self.popup.horizontal_padding
+
+        self.image = image
+
+        self.popup.height = max(
+            self.popup.height,
+            self.popup.layout.height,
+            image and image.height or 0
+        )
+        self.popup.height += self.popup.vertical_padding * 2
+
+        self.popup.win.process_button_click = lambda *_: on_click(self)
+        self.on_timeout = lambda: on_timeout(self)
+
+        self.lifetime = lifetime
+        self.created = False
+        self.alive = False
+        self.killed = False
+        self.future = None
+        self.x = self.y = None
+
+    def __getattr__(self, __name):
+        return getattr(self.popup, __name)
+
+    def _escape_text(self, text):
+        if self.popup.layout.markup:
+            return markup_escape_text(text)
+        return text
+
+    def _get_text(self, summary, body, app_name, config):
+        text = ""
+
+        def mod(t):
+            return t
+
+        app_mod = config.get("app_name_modifier", None) or mod
+        summary_mod = config.get("summary_modifier", None) or mod
+        body_mod = config.get("body_modifier", None) or mod
+
+        if app_name:
+            text += config.get("app_name_fmt", "{}").format(self._escape_text(app_mod(app_name)))
+        text += config.get("summary_fmt", "{}").format(self._escape_text(summary_mod(summary)))
+        if body:
+            text += config.get("body_fmt", "{}").format(self._escape_text(body_mod(body)))
+
+        return text
+
+    def show(self, x, y):
+        if self.killed:
+            return
+
+        if self.x == x and self.y == y:
+            return
+
+        self.x, self.y = x, y
+        self.created = True
+        self.alive = True
+
+        self.popup.x = x
+        self.popup.y = y
+        self.place()
+        self.clear()
+
+        offset = 0
+
+        if self.image:
+            # draw image, if any
+            pos_x = self.popup.horizontal_padding
+            pos_y = (self.popup.height - self.image.height) / 2
+            offset = self.image.width + self.popup.horizontal_padding
+            self.popup.drawer.ctx.save()
+            self.popup.drawer.ctx.translate(pos_x, pos_y)
+            self.popup.drawer.ctx.set_source(self.image.pattern)
+            self.popup.drawer.ctx.paint()
+            self.popup.drawer.ctx.restore()
+
+        # draw text
+        pos_x = offset + self.popup.horizontal_padding
+        pos_y = (self.popup.height - self.popup.layout.height) / 2
+        self.popup.draw_text(x=pos_x, y=pos_y)
+        self.popup.draw()
+        self.popup.unhide()
+
+        if self.lifetime is None:
+            return
+
+        if not self.future or self.future.cancelled():
+            self.future = self.manager.timeout_add(self.lifetime, self.on_timeout)
+
+    def kill(self):
+        if self.killed:
+            return
+        if self.future:
+            self.future.cancel()
+        self.popup.kill()
+        self.killed = True
+        self.alive = not self.killed

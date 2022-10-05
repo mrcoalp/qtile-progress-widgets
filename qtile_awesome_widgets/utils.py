@@ -1,7 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import os
-import os
 import site
 
 from libqtile.images import Img
@@ -29,9 +28,12 @@ def create_logger(name):
     return logger
 
 
-def get_cairo_image(path_or_url):
-    if validators.url(path_or_url):
-        return Img(requests.get(path_or_url).content)
-    if os.path.isfile(path_or_url):
-        return Img.from_path(path_or_url)
-    raise Exception("'%s' is neither a valid path nor a url." % path_or_url)
+def get_cairo_image(source, bytes_img=False):
+    if bytes_img:
+        return Img(source)
+    if validators.url(source):
+        return Img(requests.get(source).content)
+    source = os.path.expanduser(source)
+    if os.path.isfile(source):
+        return Img.from_path(source)
+    raise Exception("'%s' is neither a valid path nor a url." % source)
