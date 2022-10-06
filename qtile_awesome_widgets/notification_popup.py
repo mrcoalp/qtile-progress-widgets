@@ -3,7 +3,7 @@ from libqtile.popup import Popup
 
 
 class NotificationPopup:
-    def __init__(self, manager, notification, on_timeout, on_click, image=None, lifetime=None, **config):
+    def __init__(self, manager, notification, on_timeout, on_click, icon=None, lifetime=None, **config):
         self.id = notification.id
         self.manager = manager
 
@@ -12,18 +12,18 @@ class NotificationPopup:
         self.popup.layout.markup = config.get("markup", False)
         self.popup.text = self._get_text(notification.summary, notification.body, notification.app_name, config)
 
-        if image:
+        if icon:
             img_w = config.get("image_width", 0)
-            if image.width > img_w:
-                image.resize(width=img_w)
-            self.popup.layout.width -= image.width + self.popup.horizontal_padding
+            if icon.width > img_w:
+                icon.resize(width=img_w)
+            self.popup.layout.width -= icon.width + self.popup.horizontal_padding
 
-        self.image = image
+        self.icon = icon
 
         self.popup.height = max(
             self.popup.height,
             self.popup.layout.height,
-            image and image.height or 0
+            icon and icon.height or 0
         )
         self.popup.height += self.popup.vertical_padding * 2
 
@@ -81,14 +81,14 @@ class NotificationPopup:
 
         offset = 0
 
-        if self.image:
+        if self.icon:
             # draw image, if any
             pos_x = self.popup.horizontal_padding
-            pos_y = (self.popup.height - self.image.height) / 2
-            offset = self.image.width + self.popup.horizontal_padding
+            pos_y = (self.popup.height - self.icon.height) / 2
+            offset = self.icon.width + self.popup.horizontal_padding
             self.popup.drawer.ctx.save()
             self.popup.drawer.ctx.translate(pos_x, pos_y)
-            self.popup.drawer.ctx.set_source(self.image.pattern)
+            self.popup.drawer.ctx.set_source(self.icon.pattern)
             self.popup.drawer.ctx.paint()
             self.popup.drawer.ctx.restore()
 

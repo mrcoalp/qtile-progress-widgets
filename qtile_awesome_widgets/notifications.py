@@ -73,8 +73,20 @@ class Notifications(ProgressCoreWidget):
         ("popup_opacity", 1.0, "Opacity of notifications."),
         ("popup_foreground", None, "Colour of text. When None, uses the same as the widget."),
         ("popup_background", None, "Background colour. When None, uses the same as the widget."),
+        ("popup_low_foreground", None, "Colour of text for low urgency notifications. When None, uses default."),
+        ("popup_low_background", None, "Background colour for low urgency notifications. When None, uses default."),
+        ("popup_normal_foreground", None, "Colour of text for normal urgency notifications. When None, uses default."),
+        ("popup_normal_background", None, "Background colour for normal urgency notifications. When None, uses default."),
+        ("popup_critical_foreground", None, "Colour of text for critical urgency notifications. When None, uses default."),
+        ("popup_critical_background", None, "Background colour for critical urgency notifications. When None, uses default."),
         ("popup_border", "000000", "Border colour."),
         ("popup_border_width", 0, "Line width of drawn borders."),
+        ("popup_low_border", None, "Border colour for low urgency notifications. When None, uses default."),
+        ("popup_low_border_width", None, "Line width of drawn borders for low urgency notifications. When None, uses default."),
+        ("popup_normal_border", None, "Border colour for normal urgency notifications. When None, uses default."),
+        ("popup_normal_border_width", None, "Line width of drawn borders for normal urgency notifications. When None, uses default."),
+        ("popup_critical_border", None, "Border colour for critical urgency notifications. When None, uses default."),
+        ("popup_critical_border_width", None, "Line width of drawn borders for critical urgency notifications. When None, uses default."),
         ("popup_font", None, "Font used in notifications. When None, uses the same as widget."),
         ("popup_fontsize", None, "Size of font. When None, uses the same as widget."),
         ("popup_fontshadow", None, "Colour for text shadows, or None for no shadows."),
@@ -250,6 +262,23 @@ class Notifications(ProgressCoreWidget):
                 self._close_notification(popup, ClosedReason.method, False)
         self.update()
 
+    def _queue_notification(self, notification):
+        hints = self._get_notification_hints(notification)
+
+        self.displaying.append(NotificationPopup(
+            self,
+            notification,
+            on_timeout=self._expire_notification,
+            on_click=self._dismiss_notification,
+            **self._get_notification_config(notification, hints),
+        ))
+
+        for n in self.displaying:
+            if n.is_replaced_by(notification):
+                self._close_notification(n, ClosedReason.dismissed, False)
+
+        self.update()
+
     def _get_notification_hints(self, notification):
         hints = {}
         for internal_id, hint_keys in self.server_hints.items():
@@ -259,40 +288,48 @@ class Notifications(ProgressCoreWidget):
                     continue
         return hints
 
-    def _queue_notification(self, notification):
-        icon = None
-        hints = self._get_notification_hints(notification)
+    def _get_notification_config(self, notification, hints):
+        # copy to keep defaults
+        config = self._popup_config.copy()
 
+        # get lifetime
+        lifetime = self.default_timeout
+        if notification.timeout > 0:
+            # notification's timeout is in milliseconds
+            lifetime = notification.timeout / 1000
+        config["lifetime"] = lifetime
+
+        # get icon
+        icon = None
         if notification.app_icon:
             icon = get_cairo_image(notification.app_icon)
         elif "icon_name" in hints:
             icon = get_cairo_image(hints["icon_name"])
         elif "icon_data" in hints:
             icon = get_cairo_image(pixbuf_to_image_bytes(hints["icon_data"]), bytes_img=True)
+        config["icon"] = icon
 
-        lifetime = self.default_timeout
-        if notification.timeout > 0:
-            # notification's timeout is in milliseconds
-            lifetime = notification.timeout / 1000
+        # get urgency and update colors, when available
+        if "urgency" in hints:
+            urgency = hints["urgency"]
+            affected_props = ["foreground", "background", "border", "border_width"]
 
-        # copy to keep defaults
-        config = self._popup_config.copy()
+            def update_urgency_attribute(prefix, attr):
+                override = config.get("%s_%s" % (prefix, attr), None)
+                if override is not None:
+                    config[attr] = override
 
-        self.displaying.append(NotificationPopup(
-            self,
-            notification,
-            on_timeout=self._expire_notification,
-            on_click=self._dismiss_notification,
-            image=icon,
-            lifetime=lifetime,
-            **config,
-        ))
+            if urgency in ["l", "L", 0]:
+                for attr in affected_props:
+                    update_urgency_attribute("low", attr)
+            elif urgency in ["n", "N", 1]:
+                for attr in affected_props:
+                    update_urgency_attribute("normal", attr)
+            elif urgency in ["c", "C", 2]:
+                for attr in affected_props:
+                    update_urgency_attribute("critical", attr)
 
-        for n in self.displaying:
-            if n.is_replaced_by(notification):
-                self._close_notification(n, ClosedReason.dismissed, False)
-
-        self.update()
+        return config
 
     def _expire_notification(self, popup):
         self.missed.append(popup)
