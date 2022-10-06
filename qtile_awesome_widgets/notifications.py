@@ -8,6 +8,7 @@ from libqtile.utils import _send_dbus_message
 from .notification_popup import NotificationPopup
 from .progress_widget import ProgressCoreWidget
 from .utils import create_logger, get_cairo_image
+from multiprocessing import Lock
 
 
 _logger = create_logger("NOTIFICATIONS")
@@ -150,29 +151,27 @@ class Notifications(ProgressCoreWidget):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(Notifications.defaults)
+        self._bus = None
+        self._mutex = Lock()
         self._popup_config = None
+        self._next_id = 0
         self.displaying = []
         self.missed = []
-        self.current_id = 0
-        self.app_name = "NotificationsWidget"
         _logger.info("initialized")
 
     def _configure(self, qtile, bar):
-        super()._configure(qtile, bar)
-
         if self.update_interval is not None:
             _logger.warning("update_interval will be ignored. widget updates itself based on notifications")
             self.update_interval = None
 
+        super()._configure(qtile, bar)
+        self._prepare_popup_config()
+
     async def _config_async(self):
         if not self.external_service:
-            def on_notification(notification):
-                # should this run in an executor?
-                self.qtile.run_in_executor(self._on_notification, notification)
+            return await notifier.register(self._on_notification, ("actions", "body"), self._on_notification_close)
 
-            return await notifier.register(on_notification, ("actions", "body"))
-
-        bus, msg = await _send_dbus_message(
+        self._bus, msg = await _send_dbus_message(
             True,
             MessageType.METHOD_CALL,
             destination='org.freedesktop.DBus',
@@ -183,58 +182,17 @@ class Notifications(ProgressCoreWidget):
             body=["eavesdrop=true, interface='org.freedesktop.Notifications', member='Notify'"],
         )
 
-        def create_notification(app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout):
-            return Notification(
-                app_name=app_name,
-                replaces_id=replaces_id,
-                app_icon=app_icon,
-                summary=summary,
-                body=body,
-                actions=actions,
-                hints=hints,
-                timeout=expire_timeout,
-            )
-
-        def on_message(message):
-            self.qtile.run_in_executor(self._on_notification, create_notification(*message.body))
-
-        if bus and msg and msg.message_type == MessageType.METHOD_RETURN:
-            bus.add_message_handler(on_message)
+        if self._bus and msg and msg.message_type == MessageType.METHOD_RETURN:
+            self._bus.add_message_handler(self._on_message)
         else:
             _logger.warning("unable to eavesdrop Notifications' Notify method")
 
-    def _on_notification(self, notification):
-        log = ""
-        for key, value in notification.__dict__.items():
-            if key == "hints":
-                log += "%s:" % key
-                for k, v in value.items():
-                    if k == "icon_data":
-                        continue
-                    log += "\n\t%s: %s" % (k, v)
-                log += "\n"
-                continue
-            log += "%s: %s\n" % (key, value)
-        _logger.info(log)
-
-        # self.qtile.run_in_executor(self.queue_notification, notification)
-        self.app_name = notification.app_name
-        self.queue_notification(notification)
-
-    def _get_notification_hints(self, notification):
-        hints = {}
-        for internal_id, hint_keys in self.server_hints.items():
-            for hint in hint_keys:
-                if hint in notification.hints:
-                    hints[internal_id] = notification.hints[hint].value
-                    continue
-        return hints
-
-    def _get_popup_config(self):
+    def _prepare_popup_config(self):
         if self._popup_config is not None:
-            return self._popup_config
+            return
 
         self._popup_config = {}
+
         for key, _, _ in Notifications.defaults.copy():
             if not key.startswith("popup_"):
                 continue
@@ -251,9 +209,57 @@ class Notifications(ProgressCoreWidget):
                 k = "font_size"
             self._popup_config[k] = value
 
-        return self._popup_config
+    def _on_message(self, message):
+        def create_notification(app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout):
+            notif = Notification(
+                app_name=app_name,
+                replaces_id=replaces_id,
+                app_icon=app_icon,
+                summary=summary,
+                body=body,
+                actions=actions,
+                hints=hints,
+                timeout=expire_timeout,
+            )
+            notif.id = self._next_id
+            self._next_id += 1
+            return notif
 
-    def queue_notification(self, notification):
+        self.qtile.run_in_executor(self._on_notification, create_notification(*message.body))
+
+    def _on_notification(self, notification):
+        log = ""
+        for key, value in notification.__dict__.items():
+            if key == "hints":
+                log += "%s:" % key
+                for k, v in value.items():
+                    if k == "icon_data":
+                        continue
+                    log += "\n\t%s: %s" % (k, v)
+                log += "\n"
+                continue
+            log += "%s: %s\n" % (key, value)
+        _logger.info(log)
+
+        # should this run in an executor?
+        self.qtile.run_in_executor(self._queue_notification, notification)
+
+    def _on_notification_close(self, nid):
+        for popup in self.displaying:
+            if popup.id == nid:
+                self._close_notification(popup, ClosedReason.method, False)
+        self.update()
+
+    def _get_notification_hints(self, notification):
+        hints = {}
+        for internal_id, hint_keys in self.server_hints.items():
+            for hint in hint_keys:
+                if hint in notification.hints:
+                    hints[internal_id] = notification.hints[hint].value
+                    continue
+        return hints
+
+    def _queue_notification(self, notification):
         icon = None
         hints = self._get_notification_hints(notification)
 
@@ -266,30 +272,45 @@ class Notifications(ProgressCoreWidget):
 
         lifetime = self.default_timeout
         if notification.timeout > 0:
+            # notification's timeout is in milliseconds
             lifetime = notification.timeout / 1000
+
+        # copy to keep defaults
+        config = self._popup_config.copy()
 
         self.displaying.append(NotificationPopup(
             self,
-            notification.summary,
-            on_timeout=self.on_popup_timeout,
-            on_click=self.on_popup_clicked,
-            app_name=notification.app_name,
-            body=notification.body,
+            notification,
+            on_timeout=self._expire_notification,
+            on_click=self._dismiss_notification,
             image=icon,
             lifetime=lifetime,
-            **self._get_popup_config(),
+            **config,
         ))
 
+        for n in self.displaying:
+            if n.is_replaced_by(notification):
+                self._close_notification(n, ClosedReason.dismissed, False)
+
         self.update()
 
-    def on_popup_timeout(self, popup):
+    def _expire_notification(self, popup):
         self.missed.append(popup)
-        popup.kill()
-        self.update()
 
-    def on_popup_clicked(self, popup):
-        popup.kill()
-        self.update()
+        while len(self.missed) > self.max_missed:
+            self.missed.pop(0)
+
+        self._close_notification(popup, ClosedReason.expired)
+
+    def _dismiss_notification(self, popup):
+        self._close_notification(popup, ClosedReason.dismissed)
+
+    def _close_notification(self, popup, reason, update=True):
+        popup.mark_for_kill()
+        notifier._service.NotificationClosed(popup.id, reason)
+
+        if update:
+            self.update()
 
     def _get_popup_x(self, popup):
         if callable(self.popup_pos_x):
@@ -305,14 +326,34 @@ class Notifications(ProgressCoreWidget):
         return len(self.missed)
 
     def update_data(self):
+        # is this lock required? keeping it, for now
+        self._mutex.acquire()
+
         offset = 0
 
         for popup in reversed(self.displaying):
-            if not popup.created or popup.alive:
+            if not popup.born or popup.alive:
                 popup.show(x=self._get_popup_x(popup), y=self._get_popup_y(popup) + offset)
                 offset += popup.height + self.popup_margin
             elif not popup.alive and not popup.killed:
+                # kill marked for kill popups
                 popup.kill()
 
         self.displaying = [p for p in self.displaying if p.alive]
         self.progress = len(self.missed) / self.max_missed * 100
+
+        self._mutex.release()
+
+    def finalize(self):
+        self.qtile.call_soon_threadsafe(self._finalize)
+
+    async def _finalize(self):
+        if not self.external_service:
+            task = notifier.unregister(self._on_notification)
+
+            if task:
+                await task
+        elif self._bus:
+            self._bus.remove_message_handler(self._on_message)
+
+        super().finalize()

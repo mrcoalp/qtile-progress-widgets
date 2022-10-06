@@ -3,24 +3,14 @@ from libqtile.popup import Popup
 
 
 class NotificationPopup:
-    def __init__(
-            self,
-            manager,
-            summary,
-            on_timeout,
-            on_click,
-            app_name="",
-            body="",
-            image=None,
-            lifetime=None,
-            **config
-    ):
+    def __init__(self, manager, notification, on_timeout, on_click, image=None, lifetime=None, **config):
+        self.id = notification.id
         self.manager = manager
 
         self.popup = Popup(manager.qtile, **config)
         self.popup.layout.width = self.popup.width - self.popup.horizontal_padding * 2
         self.popup.layout.markup = config.get("markup", False)
-        self.popup.text = self._get_text(summary, body, app_name, config)
+        self.popup.text = self._get_text(notification.summary, notification.body, notification.app_name, config)
 
         if image:
             img_w = config.get("image_width", 0)
@@ -41,7 +31,7 @@ class NotificationPopup:
         self.on_timeout = lambda: on_timeout(self)
 
         self.lifetime = lifetime
-        self.created = False
+        self.born = False
         self.alive = False
         self.killed = False
         self.future = None
@@ -81,7 +71,7 @@ class NotificationPopup:
             return
 
         self.x, self.y = x, y
-        self.created = True
+        self.born = True
         self.alive = True
 
         self.popup.x = x
@@ -114,6 +104,14 @@ class NotificationPopup:
 
         if not self.future or self.future.cancelled():
             self.future = self.manager.timeout_add(self.lifetime, self.on_timeout)
+
+    def is_replaced_by(self, notif):
+        return notif.replaces_id == self.id
+
+    def mark_for_kill(self):
+        # when not alive but still not killed, manager will take care of killing
+        # self, keeping show/kill logic in the update loop
+        self.alive = False
 
     def kill(self):
         if self.killed:
