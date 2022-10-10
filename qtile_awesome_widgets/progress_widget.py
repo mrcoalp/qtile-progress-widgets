@@ -18,6 +18,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         ("fontsize", None, "Font size. Calculated if None."),
         ("fontshadow", None, "font shadow color, default is None(no shadow)"),
         ("markup", True, "Whether or not to use pango markup"),
+        ("wrap", False, "Whether to wrap text."),
         ("foreground", "ffffff", "Foreground colour"),
         ("update_interval", 1, "How often in seconds the widget refreshes."),
         ("progress_bar_active", True, "Whether to draw round progress bar."),
@@ -63,7 +64,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         super()._configure(qtile, bar)
 
         if self.text_mode and self.text_mode not in ("with_icon", "without_icon"):
-            raise ConfigError("Invalid text mode. Must either be None, 'with_icon' or 'without_icon'")
+            raise ConfigError("Invalid text mode. Must either be None, '', 'with_icon' or 'without_icon'")
 
         size = self.oriented_size
 
@@ -72,7 +73,10 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
 
         def create_layout(icon=False):
             fontsize = icon and self.icon_size or self.fontsize
-            return self.drawer.textlayout("", "ffffff", self.font, fontsize, self.fontshadow, markup=self.markup)
+            return self.drawer.textlayout(
+                "", "ffffff", self.font, fontsize, self.fontshadow,
+                markup=self.markup, wrap=self.wrap
+            )
 
         if self.progress_bar_active:
             # forward global and user configs to progress bar, to ensure proper padding

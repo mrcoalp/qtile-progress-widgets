@@ -8,7 +8,6 @@ from libqtile.utils import _send_dbus_message
 from .notification_popup import NotificationPopup
 from .progress_widget import ProgressCoreWidget
 from .utils import create_logger, get_cairo_image
-from multiprocessing import Lock
 
 
 _logger = create_logger("NOTIFICATIONS")
@@ -164,7 +163,6 @@ class Notifications(ProgressCoreWidget):
         super().__init__(**config)
         self.add_defaults(Notifications.defaults)
         self._bus = None
-        self._mutex = Lock()
         self._popup_config = None
         self._next_id = 0
         self.displaying = []
@@ -237,7 +235,7 @@ class Notifications(ProgressCoreWidget):
             self._next_id += 1
             return notif
 
-        self.qtile.run_in_executor(self._on_notification, create_notification(*message.body))
+        self.qtile.call_soon_threadsafe(self._on_notification, create_notification(*message.body))
 
     def _on_notification(self, notification):
         log = ""
@@ -254,7 +252,7 @@ class Notifications(ProgressCoreWidget):
         _logger.info(log)
 
         # should this run in an executor?
-        self.qtile.run_in_executor(self._queue_notification, notification)
+        self.qtile.call_soon_threadsafe(self._queue_notification, notification)
 
     def _on_notification_close(self, nid):
         for popup in self.displaying:
@@ -300,6 +298,7 @@ class Notifications(ProgressCoreWidget):
         config["lifetime"] = lifetime
 
         # get icon
+        # this process takes a toll on performace... can we optimize this? @performance
         icon = None
         if notification.app_icon:
             icon = get_cairo_image(notification.app_icon)

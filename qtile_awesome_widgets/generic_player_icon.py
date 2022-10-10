@@ -3,6 +3,7 @@ import json
 
 from dbus_next.constants import MessageType
 from dbus_next.signature import Variant
+from libqtile.confreader import ConfigError
 from libqtile.utils import _send_dbus_message, add_signal_receiver
 
 from .progress_widget import ProgressCoreWidget
@@ -48,6 +49,9 @@ class GenericPlayerIcon(ProgressCoreWidget):
         })
 
     async def _config_async(self):
+        if self.mpris_player is None:
+            raise ConfigError("a mpris player must be provided in order to use widget")
+
         # listen to player updates
         sub = await add_signal_receiver(
             lambda msg: asyncio.create_task(self._on_properties_changed(*msg.body)),
@@ -60,7 +64,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
         if not sub:
             _logger.warning("Failed to add 'PropertiesChanged' signal to %s", self.mpris_player)
 
-        # listen to dbus appp state updates, to react when our client state changes
+        # listen to dbus app state updates, to react when our client state changes
         sub = await add_signal_receiver(
             lambda msg: asyncio.create_task(self._on_name_owner_changed(*msg.body)),
             session_bus=True,
