@@ -1,5 +1,15 @@
+import time
+
 from libqtile.pangocffi import markup_escape_text
 from libqtile.popup import Popup
+
+
+class NotificationInfo:
+    def __init__(self, id, created_at, content, icon):
+        self.id = id
+        self.created_at = created_at
+        self.content = content
+        self.icon = icon
 
 
 class NotificationPopup:
@@ -10,7 +20,13 @@ class NotificationPopup:
         self.popup = Popup(manager.qtile, **config)
         self.popup.layout.width = self.popup.width - self.popup.horizontal_padding * 2
         self.popup.layout.markup = config.get("markup", False)
-        self.popup.text = self._get_text(notification.summary, notification.body, notification.app_name, config)
+
+        self.popup.text = self.content = self._get_content(
+            notification.summary,
+            notification.body,
+            notification.app_name,
+            config,
+        )
 
         if icon:
             img_w = config.get("image_width", 0)
@@ -36,6 +52,7 @@ class NotificationPopup:
         self.killed = False
         self.future = None
         self.x = self.y = None
+        self.created_at = time.strftime("%Y-%m-%d %H:%M")
 
     def __getattr__(self, __name):
         return getattr(self.popup, __name)
@@ -45,7 +62,7 @@ class NotificationPopup:
             return markup_escape_text(text)
         return text
 
-    def _get_text(self, summary, body, app_name, config):
+    def _get_content(self, summary, body, app_name, config):
         text = ""
 
         def mod(t):
@@ -121,3 +138,6 @@ class NotificationPopup:
         self.popup.kill()
         self.killed = True
         self.alive = not self.killed
+
+    def get_info(self):
+        return NotificationInfo(self.id, self.created_at, self.content, self.icon)

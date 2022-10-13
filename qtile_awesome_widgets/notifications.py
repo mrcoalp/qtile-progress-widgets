@@ -51,7 +51,6 @@ class Notifications(ProgressCoreWidget):
         ("icons", [
             ((0, 100), "\uf00b"),
         ], "Icons to present inside progress bar, based on progress limits."),
-        ("text_mode", "with_icon", "Show text mode. Use 'with_icon' or 'without_icon'. None to not show."),
         ("default_timeout", 10, "Default notification timeout, when notification does not have one."),
         ("max_missed", 50, "Max number of missed notifications saved. These can be revisited or cleared."),
         ("external_service", False, "Whether to use an external notification service or qtile's one."),
@@ -144,6 +143,12 @@ class Notifications(ProgressCoreWidget):
         ("popup_text_alignment", "left", "Text alignment: left, center or right."),
         ("popup_wrap", True, "Whether to wrap text."),
         ("popup_markup", True, "Whether or not to use pango markup."),
+        (
+            "notif_center_enabled",
+            False,
+            "Whether or not to enable notifications center. When enabled, bar widget will start "
+            "monitoring the unread box left space. When clicked, the widget will toggle notifications center."
+        ),
     ]
     server_hints = {
         "urgency": ("urgency",),
@@ -166,7 +171,7 @@ class Notifications(ProgressCoreWidget):
         self._popup_config = None
         self._next_id = 0
         self.displaying = []
-        self.missed = []
+        self.center = None
         _logger.info("initialized")
 
     def _configure(self, qtile, bar):
@@ -176,6 +181,18 @@ class Notifications(ProgressCoreWidget):
 
         super()._configure(qtile, bar)
         self._prepare_popup_config()
+
+        if self.notif_center_enabled:
+            # create notifications center
+            from .notifications_center import NotificationsCenter
+            self.center = NotificationsCenter(qtile, 0, 0, 200, bar.screen.height, {
+                "background": "000000"
+            })
+
+            # enable mouse callbacks
+            self.add_callbacks({
+                "Button1": lambda: self.center.toggle()
+            })
 
     async def _config_async(self):
         if not self.external_service:
@@ -331,10 +348,11 @@ class Notifications(ProgressCoreWidget):
         return config
 
     def _expire_notification(self, popup):
-        self.missed.append(popup)
+        if self.notif_center_enabled:
+            self.center.store_notification(popup.get_info())
 
-        while len(self.missed) > self.max_missed:
-            self.missed.pop(0)
+            while len(self.center.stored) > self.max_missed:
+                self.center.stored.pop(0)
 
         self._close_notification(popup, ClosedReason.expired)
 
@@ -359,12 +377,11 @@ class Notifications(ProgressCoreWidget):
         return self.popup_pos_y
 
     def get_text(self):
-        return len(self.missed)
+        if not self.notif_center_enabled:
+            return ""
+        return len(self.center.stored)
 
     def update_data(self):
-        # is this lock required? keeping it, for now
-        self._mutex.acquire()
-
         offset = 0
 
         for popup in reversed(self.displaying):
@@ -376,9 +393,9 @@ class Notifications(ProgressCoreWidget):
                 popup.kill()
 
         self.displaying = [p for p in self.displaying if p.alive]
-        self.progress = len(self.missed) / self.max_missed * 100
 
-        self._mutex.release()
+        if self.notif_center_enabled:
+            self.progress = len(self.center.stored) / self.max_missed * 100
 
     def finalize(self):
         self.qtile.call_soon_threadsafe(self._finalize)
