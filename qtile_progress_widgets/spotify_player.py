@@ -1,7 +1,7 @@
-from .generic_player_icon import GenericPlayerIcon
+from .generic_player import GenericPlayer
 
 
-class SpotifyPlayerIcon(GenericPlayerIcon):
+class SpotifyPlayer(GenericPlayer):
     defaults = [
         ("icons", [
             ((0, 100), "\uf1bc"),
@@ -23,4 +23,4 @@ class SpotifyPlayerIcon(GenericPlayerIcon):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(SpotifyPlayerIcon.defaults)
+        self.add_defaults(SpotifyPlayer.defaults)

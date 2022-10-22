@@ -13,7 +13,7 @@ from .utils import create_logger, get_cairo_image
 _logger = create_logger("GENERIC_PLAYER_ICON")
 
 
-class GenericPlayerIcon(ProgressCoreWidget):
+class GenericPlayer(ProgressCoreWidget):
     defaults = [
         (
             "text_format",
@@ -36,7 +36,7 @@ class GenericPlayerIcon(ProgressCoreWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(GenericPlayerIcon.defaults)
+        self.add_defaults(GenericPlayer.defaults)
         self.metadata = {}
         self.playback_status = "Stopped"
         self.playback_position = 0

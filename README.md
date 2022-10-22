@@ -1,5 +1,5 @@
 <h2 align="center">
-	Qtile Awesome Widgets<br/><br/>
+	Qtile Progress Widgets<br/><br/>
 	<img src="media/sample.png" alt="Logo"/><br/>
 </h2>
 
@@ -12,7 +12,7 @@ Set of <a href="http://www.qtile.org/">Qtile</a>'s bar widgets heavily inspired 
 <h3>Installation</h3>
 
 ```shell
-pip install git+https://github.com/mrcoalp/qtile-awesome-widgets.git
+pip install git+https://github.com/mrcoalp/qtile-progress-widgets.git
 ```
 
 <br/>

@@ -7,7 +7,7 @@ from .utils import create_logger
 _logger = create_logger("BATTERY_ICON")
 
 
-class BatteryIcon(ProgressInFutureWidget):
+class Battery(ProgressInFutureWidget):
     defaults = [
         ("update_interval", 10, "How often in seconds the widget refreshes."),
         ("icons", [
@@ -43,7 +43,7 @@ class BatteryIcon(ProgressInFutureWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(BatteryIcon.defaults)
+        self.add_defaults(Battery.defaults)
         self._battery = bt.load_battery(**config)
         self.state = bt.BatteryState.UNKNOWN
         _logger.debug("initialized")

@@ -3,7 +3,7 @@ import psutil
 from .progress_widget import ProgressInFutureWidget
 
 
-class MemoryIcon(ProgressInFutureWidget):
+class Memory(ProgressInFutureWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\uf85a"),
@@ -28,7 +28,7 @@ class MemoryIcon(ProgressInFutureWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(MemoryIcon.defaults)
+        self.add_defaults(Memory.defaults)
         self.calc_mem = self.measures[self.measure_mem]
         self.calc_swap = self.measures[self.measure_swap]
         self.values = {}

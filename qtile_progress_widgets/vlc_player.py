@@ -1,7 +1,7 @@
-from .generic_player_icon import GenericPlayerIcon
+from .generic_player import GenericPlayer
 
 
-class VLCPlayerIcon(GenericPlayerIcon):
+class VLCPlayer(GenericPlayer):
     defaults = [
         ("icons", [
             ((0, 100), "\ufa7b"),
@@ -13,4 +13,4 @@ class VLCPlayerIcon(GenericPlayerIcon):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(VLCPlayerIcon.defaults)
+        self.add_defaults(VLCPlayer.defaults)

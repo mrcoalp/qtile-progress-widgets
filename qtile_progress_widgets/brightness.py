@@ -56,7 +56,7 @@ class _Commands():
         return self._safe_call(lambda: sp.call(self._dec))
 
 
-class BrightnessIcon(ProgressCoreWidget):
+class Brightness(ProgressCoreWidget):
     defaults = [
         ("program", "brightnessctl", "Program to control brightness."),
         ("step", 5, "Increment/decrement percentage of brightness."),
@@ -70,7 +70,7 @@ class BrightnessIcon(ProgressCoreWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(BrightnessIcon.defaults)
+        self.add_defaults(Brightness.defaults)
         self._cmds = _Commands(self.program, self.step)
         self.add_callbacks({
             "Button1": self.cmd_set,

@@ -13,7 +13,7 @@ logging.disable(logging.DEBUG)
 
 def create_logger(name):
     formatter = logging.Formatter("[%(asctime)s][%(name)s][%(levelname)s]: %(message)s", "%Y/%m/%d %H:%M:%S")
-    log_dir = os.path.join(site.getuserbase(), "share", "qtile-awesome-widgets")
+    log_dir = os.path.join(site.getuserbase(), "share", "qtile-progress-widgets")
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)

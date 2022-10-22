@@ -155,7 +155,7 @@ class AudioWidget(ProgressCoreWidget):
         return self.controls.is_muted()
 
 
-class VolumeIcon(AudioWidget):
+class Volume(AudioWidget):
     defaults = [
         ("icons", [
             ((-1, -1), "\ufc5d"),
@@ -167,11 +167,11 @@ class VolumeIcon(AudioWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(VolumeIcon.defaults)
+        self.add_defaults(Volume.defaults)
         _log_vol.info("initialized with '%s'", self.device)
 
 
-class MicrophoneIcon(AudioWidget):
+class Microphone(AudioWidget):
     defaults = [
         ("icons", [
             ((-1, -1), "\uf131"),
@@ -182,5 +182,5 @@ class MicrophoneIcon(AudioWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(MicrophoneIcon.defaults)
+        self.add_defaults(Microphone.defaults)
         _log_mic.info("initialized with '%s'", self.device)

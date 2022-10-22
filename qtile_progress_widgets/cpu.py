@@ -3,7 +3,7 @@ import psutil
 from .progress_widget import ProgressInFutureWidget
 
 
-class CPUIcon(ProgressInFutureWidget):
+class CPU(ProgressInFutureWidget):
     defaults = [
         ("icons", [
             ((0, 100), "\ue266"),
@@ -24,7 +24,7 @@ class CPUIcon(ProgressInFutureWidget):
 
     def __init__(self, **config):
         super().__init__(**config)
-        self.add_defaults(CPUIcon.defaults)
+        self.add_defaults(CPU.defaults)
 
     def update_data(self):
         self.progress = psutil.cpu_percent()
