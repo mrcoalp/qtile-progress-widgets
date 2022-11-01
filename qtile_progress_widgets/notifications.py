@@ -7,7 +7,7 @@ from libqtile.utils import _send_dbus_message
 
 from .notification_popup import NotificationPopup
 from .progress_widget import ProgressCoreWidget
-from .utils import create_logger, get_cairo_image
+from .utils import create_logger, get_cairo_image, get_gtk_icon
 
 
 _logger = create_logger("NOTIFICATIONS")
@@ -174,6 +174,22 @@ class Notifications(ProgressCoreWidget):
         self.center = None
         _logger.info("initialized")
 
+    @staticmethod
+    def _get_notification_icon(notification, hints):
+        if notification.app_icon:
+            icon_path = get_gtk_icon(notification.app_icon)
+            # if icon was not found, skip to next check
+            if icon_path:
+                return get_cairo_image(icon_path)
+
+        if "icon_name" in hints:
+            return get_cairo_image(hints["icon_name"])
+
+        if "icon_data" in hints:
+            return get_cairo_image(pixbuf_to_image_bytes(hints["icon_data"]), bytes_img=True)
+
+        return None
+
     def _configure(self, qtile, bar):
         if self.update_interval is not None:
             _logger.warning("update_interval will be ignored. widget updates itself based on notifications")
@@ -316,14 +332,7 @@ class Notifications(ProgressCoreWidget):
 
         # get icon
         # this process takes a toll on performace... can we optimize this? @performance
-        icon = None
-        if notification.app_icon:
-            icon = get_cairo_image(notification.app_icon)
-        elif "icon_name" in hints:
-            icon = get_cairo_image(hints["icon_name"])
-        elif "icon_data" in hints:
-            icon = get_cairo_image(pixbuf_to_image_bytes(hints["icon_data"]), bytes_img=True)
-        config["icon"] = icon
+        config["icon"] = self._get_notification_icon(notification, hints)
 
         # get urgency and update colors, when available
         if "urgency" in hints:

@@ -7,6 +7,14 @@ from libqtile.images import Img
 import requests
 import validators
 
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk
+    has_gtk = True
+except:
+    has_gtk = False
+
 
 logging.disable(logging.DEBUG)
 
@@ -37,3 +45,16 @@ def get_cairo_image(source, bytes_img=False):
     if os.path.isfile(source):
         return Img.from_path(source)
     raise Exception("'%s' is neither a valid path nor a url." % source)
+
+
+def get_gtk_icon(icon_name):
+    if not has_gtk:
+        return None
+
+    icon_theme = Gtk.IconTheme.get_default()
+    icon = icon_theme.lookup_icon(icon_name, 512, 0)
+
+    if icon:
+        return icon.get_filename()
+
+    return None
