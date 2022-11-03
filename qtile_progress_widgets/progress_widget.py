@@ -90,6 +90,12 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if self.text_mode in ("with_icon", "without_icon"):
             self._text_layout = create_layout()
 
+        # update draw elements, still keeping pending update data
+        # required for reconfigured widgets, upon a bar reconfigure
+        # this call ensures newly created elements to update their states
+        # to current widget state, since all content is dynamic
+        self.update_draw_elements(reschedule=self.pending_update)
+
     def timer_setup(self):
         try:
             if self.configured:
@@ -195,7 +201,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     def is_draw_update_required(self):
         return True
 
-    def update_draw_elements(self):
+    def update_draw_elements(self, reschedule=False):
         if self.progress_bar_active:
             completed, remaining = self.get_progress_bar_color()
             inner = self.get_progress_bar_inner_color()
@@ -207,7 +213,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if self._text_layout:
             self._update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
 
-        self.pending_update = False
+        self.pending_update = reschedule
 
     def update_draw_length(self):
         self._total_length = 0
