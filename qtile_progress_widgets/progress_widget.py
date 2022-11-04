@@ -12,12 +12,7 @@ from .utils import create_logger
 _logger = create_logger("CORE")
 
 
-def _update_layout(layout, **kwargs):
-    for key, value in kwargs.items():
-        setattr(layout, key, value)
-
-
-class _IconHandler:
+class _LayoutHandler:
     def __init__(self, widget):
         self.widget = widget
         self.configured = False
@@ -34,26 +29,28 @@ class _IconHandler:
             return 0
         return self.layout.height
 
-    def configure(self):
+    @property
+    def text(self):
+        if not self.configured:
+            return ""
+        return self.layout.text
+
+    def configure(self, fontsize=None):
         # create text layout
-        fontsize = self.widget.icon_size or self.widget.fontsize
         self.layout = self.widget.drawer.textlayout(
-            "", "ffffff", self.widget.font, fontsize, self.widget.fontshadow,
-            markup=self.widget.markup, wrap=self.widget.wrap
+            "", "ffffff", self.widget.font, fontsize or self.widget.fontsize,
+            self.widget.fontshadow, markup=self.widget.markup, wrap=self.widget.wrap
         )
 
         self.configured = True
         return self
 
-    def update(self):
+    def update(self, params):
         if not self.configured:
             return
 
-        params = dict(
-            text=self.widget.get_icon(),
-            colour=self.widget.get_icon_color(),
-        )
-        _update_layout(self.layout, **params)
+        for key, value in params.items():
+            setattr(self.layout, key, value)
 
     def draw(self, x, y):
         if not self.configured:
@@ -66,6 +63,27 @@ class _IconHandler:
             return
 
         self.layout.finalize()
+
+
+class _TextHandler(_LayoutHandler):
+    def update(self):
+        params = dict(
+            text=self.widget.get_text(),
+            colour=self.widget.get_text_color(),
+        )
+        super().update(params)
+
+
+class _IconHandler(_LayoutHandler):
+    def configure(self):
+        return super().configure(self.widget.icon_size)
+
+    def update(self):
+        params = dict(
+            text=self.widget.get_icon(),
+            colour=self.widget.get_icon_color(),
+        )
+        super().update(params)
 
 
 class ProgressCoreWidget(base._Widget, base.PaddingMixin):
@@ -94,13 +112,15 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if not "name" in config:
             config["name"] = "progress_" + self.__class__.__name__.lower()
 
-        super().__init__(bar.CALCULATED, **config)
+        super().__init__(config.pop("width", bar.CALCULATED), **config)
         self.add_defaults(ProgressCoreWidget.defaults)
 
         self._icon_handler = None
         self.icon_active = False
 
-        self._text_layout = None
+        self._text_handler = None
+        self.text_active = False
+
         self._progress_bar = None
         self._total_length = 0
         self.pending_update = True
@@ -120,18 +140,12 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
             raise ConfigError("Invalid text mode. Must either be None, '', 'with_icon' or 'without_icon'")
 
         self.icon_active = not self.text_mode or self.text_mode == "with_icon"
+        self.text_active = self.text_mode in ("with_icon", "without_icon")
 
         size = self.oriented_size
 
         if self.fontsize is None:
             self.fontsize = size - size / 5
-
-        def create_layout(icon=False):
-            fontsize = icon and self.icon_size or self.fontsize
-            return self.drawer.textlayout(
-                "", "ffffff", self.font, fontsize, self.fontshadow,
-                markup=self.markup, wrap=self.wrap
-            )
 
         if self.progress_bar_active:
             # forward global and user configs to progress bar, to ensure proper padding
@@ -142,8 +156,8 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if self.icon_active:
             self._icon_handler = _IconHandler(self).configure()
 
-        if self.text_mode in ("with_icon", "without_icon"):
-            self._text_layout = create_layout()
+        if self.text_active:
+            self._text_handler = _TextHandler(self).configure()
 
         # update draw elements, still keeping pending update data
         # required for reconfigured widgets, upon a bar reconfigure
@@ -265,8 +279,8 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
         if self.icon_active:
             self._icon_handler.update()
 
-        if self._text_layout:
-            _update_layout(self._text_layout, text=self.get_text(), colour=self.get_text_color())
+        if self.text_active:
+            self._text_handler.update()
 
         self.pending_update = reschedule
 
@@ -284,9 +298,9 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
             # add icon width and its padding to total length
             self._total_length += self._icon_handler.width + self.padding_x * 2
 
-        if self._text_layout and self._text_layout.text:
+        if self.text_active and self._text_handler.text:
             # add text width and offsets to total length
-            self._total_length += self._text_layout.width + self.text_offset + self.padding_x * 2
+            self._total_length += self._text_handler.width + self.text_offset + self.padding_x * 2
 
     def draw_call(self):
         old_length = self._total_length
@@ -333,7 +347,7 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
 
         if self.text_mode == "without_icon":
             # replace icon with text
-            offset += self._draw_element_inside_bar(self._text_layout, offset)
+            offset += self._draw_element_inside_bar(self._text_handler, offset)
             return self.draw_after_elements(offset)
 
         if self.text_mode != "with_icon":
@@ -351,12 +365,12 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
 
         offset += self.draw_between_elements(offset)
 
-        if not self._text_layout or not self._text_layout.text:
+        if not self.text_active or not self._text_handler.text:
             return self.draw_after_elements(offset)
 
-        x, y = self._get_oriented_coords(self._text_layout)
-        self._text_layout.draw(x + self.text_offset + offset, y)
-        self.draw_after_elements(offset + self._text_layout.width + self.padding_x * 2)
+        x, y = self._get_oriented_coords(self._text_handler)
+        self._text_handler.draw(x + self.text_offset + offset, y)
+        self.draw_after_elements(offset + self._text_handler.width + self.padding_x * 2)
 
     def draw_oriented(self):
         self.drawer.ctx.save()
@@ -380,8 +394,8 @@ class ProgressCoreWidget(base._Widget, base.PaddingMixin):
     def finalize(self):
         if self.icon_active:
             self._icon_handler.finalize()
-        if self._text_layout:
-            self._text_layout.finalize()
+        if self.text_active:
+            self._text_handler.finalize()
         return super().finalize()
 
 
