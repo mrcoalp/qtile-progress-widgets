@@ -1,4 +1,5 @@
 import io
+import os
 
 from PIL import Image
 from dbus_next.constants import MessageType
@@ -53,7 +54,6 @@ class Notifications(ProgressCoreWidget):
         ], "Icons to present inside progress bar, based on progress limits."),
         ("default_timeout", 10, "Default notification timeout, when notification does not have one."),
         ("max_missed", 50, "Max number of missed notifications saved. These can be revisited or cleared."),
-        ("external_service", False, "Whether to use an external notification service or qtile's one."),
         (
             "popup_pos_x",
             lambda qtile, bar, popup: bar.screen.width - popup.width - 5,
@@ -167,26 +167,30 @@ class Notifications(ProgressCoreWidget):
     def __init__(self, **config):
         super().__init__(**config)
         self.add_defaults(Notifications.defaults)
-        self._bus = None
         self._popup_config = None
-        self._next_id = 0
         self.displaying = []
         self.center = None
         _logger.info("initialized")
 
     @staticmethod
     def _get_notification_icon(notification, hints):
-        if notification.app_icon:
-            icon_path = get_gtk_icon(notification.app_icon)
-            # if icon was not found, skip to next check
+        app_icon = notification.app_icon
+
+        if app_icon:
+            icon_path = get_gtk_icon(app_icon)
             if icon_path:
+                # icon was found in current gtk theme
                 return get_cairo_image(icon_path)
+            if os.path.exists(app_icon):
+                # icon is an abs path to an os' file
+                return get_cairo_image(app_icon)
 
         if "icon_name" in hints:
             return get_cairo_image(hints["icon_name"])
 
         if "icon_data" in hints:
-            return get_cairo_image(pixbuf_to_image_bytes(hints["icon_data"]), bytes_img=True)
+            img_bytes = pixbuf_to_image_bytes(hints["icon_data"])
+            return get_cairo_image(img_bytes, bytes_img=True)
 
         return None
 
@@ -211,24 +215,7 @@ class Notifications(ProgressCoreWidget):
             })
 
     async def _config_async(self):
-        if not self.external_service:
-            return await notifier.register(self._on_notification, ("actions", "body"), self._on_notification_close)
-
-        self._bus, msg = await _send_dbus_message(
-            True,
-            MessageType.METHOD_CALL,
-            destination='org.freedesktop.DBus',
-            interface='org.freedesktop.DBus',
-            path='/org/freedesktop/DBus',
-            member='AddMatch',
-            signature='s',
-            body=["eavesdrop=true, interface='org.freedesktop.Notifications', member='Notify'"],
-        )
-
-        if self._bus and msg and msg.message_type == MessageType.METHOD_RETURN:
-            self._bus.add_message_handler(self._on_message)
-        else:
-            _logger.warning("unable to eavesdrop Notifications' Notify method")
+        await notifier.register(self._on_notification, ("actions", "body"), self._on_notification_close)
 
     def _prepare_popup_config(self):
         if self._popup_config is not None:
@@ -252,24 +239,6 @@ class Notifications(ProgressCoreWidget):
                 k = "font_size"
             self._popup_config[k] = value
 
-    def _on_message(self, message):
-        def create_notification(app_name, replaces_id, app_icon, summary, body, actions, hints, expire_timeout):
-            notif = Notification(
-                app_name=app_name,
-                replaces_id=replaces_id,
-                app_icon=app_icon,
-                summary=summary,
-                body=body,
-                actions=actions,
-                hints=hints,
-                timeout=expire_timeout,
-            )
-            notif.id = self._next_id
-            self._next_id += 1
-            return notif
-
-        self.qtile.call_soon_threadsafe(self._on_notification, create_notification(*message.body))
-
     def _on_notification(self, notification):
         log = ""
         for key, value in notification.__dict__.items():
@@ -284,7 +253,6 @@ class Notifications(ProgressCoreWidget):
             log += "%s: %s\n" % (key, value)
         _logger.info(log)
 
-        # should this run in an executor?
         self.qtile.call_soon_threadsafe(self._queue_notification, notification)
 
     def _on_notification_close(self, nid):
@@ -410,12 +378,9 @@ class Notifications(ProgressCoreWidget):
         self.qtile.call_soon_threadsafe(self._finalize)
 
     async def _finalize(self):
-        if not self.external_service:
-            task = notifier.unregister(self._on_notification)
+        task = notifier.unregister(self._on_notification)
 
-            if task:
-                await task
-        elif self._bus:
-            self._bus.remove_message_handler(self._on_message)
+        if task:
+            await task
 
         super().finalize()
